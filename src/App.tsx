@@ -5,6 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import GridLayout, { type Layout } from 'react-grid-layout';
 import {
   ChevronDown, ChevronUp, Eye, EyeOff, LogOut, Minus, Plus, Search, Settings, Trash2, Wrench, WifiOff, X,
 } from 'lucide-react';
@@ -72,7 +73,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
         className="w-full max-w-sm rounded-xl border border-[#e8dcc8] bg-white p-6 shadow-xl"
       >
         <div className="flex items-center gap-3 mb-2">
-          <img src="/src/dockflow.png" alt="SMC" className="h-8 w-8" />
+          <img src="/dockflow.png" alt="SMC" className="h-8 w-8" />
           <h1 className="text-lg font-bold text-[#6B1919]">Job Board</h1>
         </div>
         <p className="mt-1 text-sm text-[#8a928c]">Sign in to continue.</p>
@@ -313,6 +314,15 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     );
   };
 
+  const handleGridLayoutChange = (newLayout: Layout[]) => {
+    const updated = layout.map((col) => {
+      const gridItem = newLayout.find((item) => item.i === col.id);
+      if (!gridItem) return col;
+      return { ...col, span: gridItem.w, position: gridItem.x };
+    });
+    commitLayout(updated);
+  };
+
   const setAreaColor = (areaCode: string, color: AreaColorKey) => {
     const updated = { ...areaColors, [areaCode]: color };
     setAreaColors(updated);
@@ -369,12 +379,25 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
 
   const activeJob = activeId ? jobs.find((j) => j.id === activeId) ?? null : null;
   const activeCompact = activeJob ? visibleColumns.find((c) => c.id === activeJob.status)?.compact : false;
+  const mainRef = useRef<HTMLDivElement>(null);
+  const [gridWidth, setGridWidth] = useState(window.innerWidth - 40);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (mainRef.current) {
+        setGridWidth(mainRef.current.offsetWidth);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#faf8f3] text-[#232826]">
       <header className="flex items-center justify-between gap-4 border-b border-[#e8dcc8] px-5 py-3 bg-white">
         <div className="flex items-baseline gap-3">
-          <img src="/src/dockflow.png" alt="SMC" className="h-8 w-8" />
+          <img src="/dockflow.png" alt="SMC" className="h-8 w-8" />
           <h1 className="text-xl font-bold tracking-tight text-[#6B1919]">Job Board</h1>
           <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1">
             <button
@@ -454,7 +477,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 p-4">
+      <main ref={mainRef} className="min-h-0 flex-1 p-4">
         {loading ? (
           <p className="text-sm text-[#9aa29c]">Loading the board…</p>
         ) : visibleColumns.length === 0 ? (
@@ -467,17 +490,38 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="grid h-full gap-3" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridAutoRows: 'minmax(0, 1fr)' }}>
+            <GridLayout
+              className="h-full"
+              layout={visibleColumns.map((col) => ({
+                x: col.position,
+                y: 0,
+                w: col.span,
+                h: 1,
+                i: col.id,
+              }))}
+              cols={12}
+              rowHeight={Math.max(400, window.innerHeight - 220)}
+              width={gridWidth}
+              onLayoutChange={handleGridLayoutChange}
+              isDraggable={true}
+              isResizable={true}
+              compactType="vertical"
+              preventCollision={false}
+              useCSSTransforms={true}
+              containerPadding={[0, 0]}
+              margin={[12, 12]}
+            >
               {visibleColumns.map((col) => (
-                <BoardColumn
-                  key={col.id}
-                  col={col}
-                  jobs={byStatus[col.id] ?? []}
-                  onEdit={openEdit}
-                  areaColors={areaColors}
-                />
+                <div key={col.id}>
+                  <BoardColumn
+                    col={col}
+                    jobs={byStatus[col.id] ?? []}
+                    onEdit={openEdit}
+                    areaColors={areaColors}
+                  />
+                </div>
               ))}
-            </div>
+            </GridLayout>
             <DragOverlay>
               {activeJob ? (
                 <div className="rotate-2 shadow-xl">
@@ -665,8 +709,7 @@ function BoardColumn({
 
   return (
     <div
-      style={{ gridColumn: `span ${col.span} / span ${col.span}` }}
-      className={`flex min-h-0 flex-col rounded-xl border bg-white transition ${
+      className={`flex h-full flex-col rounded-xl border bg-white transition ${
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
