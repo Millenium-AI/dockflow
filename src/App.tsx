@@ -367,12 +367,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     return groups;
   }, [jobs, search, hideOldCompleted, now]);
 
-  const layoutSpec = tabLayoutSpecs[viewTab];
+  const layoutSpec = viewTab === 'reporting' ? null : tabLayoutSpecs[viewTab];
   const visibleColumns: RenderColumn[] = useMemo(
-    () => layoutSpec.items.map((id) => columnDefaults.find((d) => d.id === id)!),
+    () => layoutSpec ? layoutSpec.items.map((id) => columnDefaults.find((d) => d.id === id)!) : [],
     [layoutSpec]
   );
-  const gridSpec = tabGridSpecs[viewTab];
+  const gridSpec = viewTab === 'reporting' ? null : tabGridSpecs[viewTab];
 
   const openEdit = (job: Job) => {
     setEditing(job);
@@ -1310,133 +1310,143 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
   const jobsByStatus = getJobsByStatus();
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="space-y-6 pb-6 px-2">
+    <div className="h-full overflow-y-auto bg-[#faf8f3]">
+      <div className="space-y-6 pb-8 px-6">
+        {/* Page Title */}
+        <div className="pt-4">
+          <h1 className="text-4xl font-bold text-[#6B1919]">Job Reports</h1>
+        </div>
+
         {/* Overview */}
-        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
-          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Overview</h2>
-          <div className="grid grid-cols-4 gap-3">
-            <div className="rounded-lg bg-[#faf8f3] p-3">
-              <p className="text-xs text-[#8a928c] font-semibold">Total Jobs</p>
-              <p className="text-2xl font-bold text-[#3a423d] mt-1">{jobs.length}</p>
+        <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+          <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Overview</h2>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="rounded-lg bg-[#faf8f3] p-6 border-l-4 border-[#6D8FA8]">
+              <p className="text-sm text-[#8a928c] font-semibold mb-2">Total Jobs</p>
+              <p className="text-4xl font-bold text-[#3a423d]">{jobs.length}</p>
             </div>
-            <div className="rounded-lg bg-[#faf8f3] p-3">
-              <p className="text-xs text-[#8a928c] font-semibold">Active</p>
-              <p className="text-2xl font-bold text-[#3a423d] mt-1">{activeJobs.length}</p>
+            <div className="rounded-lg bg-[#faf8f3] p-6 border-l-4 border-[#5B6E65]">
+              <p className="text-sm text-[#8a928c] font-semibold mb-2">Active</p>
+              <p className="text-4xl font-bold text-[#3a423d]">{activeJobs.length}</p>
             </div>
-            <div className="rounded-lg bg-[#faf8f3] p-3">
-              <p className="text-xs text-[#8a928c] font-semibold">Completed</p>
-              <p className="text-2xl font-bold text-[#3a423d] mt-1">{completedJobs.length}</p>
+            <div className="rounded-lg bg-[#faf8f3] p-6 border-l-4 border-[#A8B0AC]">
+              <p className="text-sm text-[#8a928c] font-semibold mb-2">Completed</p>
+              <p className="text-4xl font-bold text-[#3a423d]">{completedJobs.length}</p>
             </div>
-            <div className="rounded-lg bg-[#fbf0ee] p-3">
-              <p className="text-xs text-[#8a928c] font-semibold">High Priority</p>
-              <p className="text-2xl font-bold text-[#ef4444] mt-1">{highPriorityJobs.length}</p>
+            <div className="rounded-lg bg-[#fbf0ee] p-6 border-l-4 border-[#ef4444]">
+              <p className="text-sm text-[#8a928c] font-semibold mb-2">🔴 High Priority</p>
+              <p className="text-4xl font-bold text-[#ef4444]">{highPriorityJobs.length}</p>
             </div>
           </div>
         </div>
 
         {/* Financial & Work (if data filled) */}
         {(totalPrice > 0 || totalDays > 0) && (
-          <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
-            <h2 className="text-lg font-bold text-[#6B1919] mb-4">Active Work Pipeline</h2>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-lg bg-[#faf8f3] p-4">
-                <p className="text-sm text-[#8a928c] font-semibold">Total $</p>
-                <p className="text-3xl font-bold text-[#3a423d] mt-1">${totalPrice.toLocaleString()}</p>
+          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Active Work Pipeline</h2>
+            <div className="grid grid-cols-3 gap-6">
+              <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-8 text-center border border-[#e8dcc8]">
+                <p className="text-lg text-[#8a928c] font-semibold mb-3">Total Revenue</p>
+                <p className="text-5xl font-bold text-[#3a423d]">${totalPrice.toLocaleString()}</p>
               </div>
-              <div className="rounded-lg bg-[#faf8f3] p-4">
-                <p className="text-sm text-[#8a928c] font-semibold">Total Days</p>
-                <p className="text-3xl font-bold text-[#3a423d] mt-1">{totalDays.toFixed(0)}</p>
+              <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-8 text-center border border-[#e8dcc8]">
+                <p className="text-lg text-[#8a928c] font-semibold mb-3">Total Days</p>
+                <p className="text-5xl font-bold text-[#3a423d]">{totalDays.toFixed(0)}</p>
               </div>
-              <div className="rounded-lg bg-[#faf8f3] p-4">
-                <p className="text-sm text-[#8a928c] font-semibold">Weeks</p>
-                <p className="text-3xl font-bold text-[#3a423d] mt-1">{totalWeeks}w</p>
+              <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-8 text-center border border-[#e8dcc8]">
+                <p className="text-lg text-[#8a928c] font-semibold mb-3">Weeks of Work</p>
+                <p className="text-5xl font-bold text-[#3a423d]">{totalWeeks}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Jobs by Status */}
-        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
-          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Jobs by Status</h2>
-          <div className="space-y-2">
-            {columnDefaults.map((col) => {
-              const count = jobsByStatus[col.id] ?? 0;
-              return (
-                <div key={col.id} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ background: col.accent }} />
-                    <span className="font-semibold text-[#3a423d]">{col.label}</span>
+        {/* 2x2 Grid */}
+        <div className="grid grid-cols-2 gap-6">
+          {/* Jobs by Status */}
+          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Jobs by Status</h2>
+            <div className="space-y-3">
+              {columnDefaults.map((col) => {
+                const count = jobsByStatus[col.id] ?? 0;
+                return (
+                  <div key={col.id} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border-l-4" style={{ borderLeftColor: col.accent }}>
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full" style={{ background: col.accent }} />
+                      <span className="font-semibold text-[#3a423d]">{col.label}</span>
+                    </div>
+                    <span className="text-xl font-bold text-[#6B1919]">{count}</span>
                   </div>
-                  <span className="text-sm font-bold text-[#6B1919]">{count}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Jobs by Area */}
-        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
-          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Jobs by Area</h2>
-          <div className="space-y-2">
-            {Object.entries(jobsByArea)
-              .sort((a, b) => b[1] - a[1])
-              .map(([area, count]) => (
-                <div key={area} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
-                  <span className="font-mono font-semibold text-[#3a423d]">{area}</span>
-                  <span className="text-sm font-bold text-[#6B1919]">{count}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-
-        {/* Jobs by Assignment */}
-        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
-          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Jobs by Team Member</h2>
-          <div className="space-y-2">
-            {Object.entries(jobsByAssignment)
-              .sort((a, b) => b[1] - a[1])
-              .map(([assigned, count]) => (
-                <div key={assigned} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
-                  <span className="font-semibold text-[#3a423d]">{assigned}</span>
-                  <span className="text-sm font-bold text-[#6B1919]">{count}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-
-        {/* Job Types */}
-        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
-          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Job Types</h2>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
-              <span className="font-semibold text-[#3a423d]">Install</span>
-              <span className="text-sm font-bold text-[#6B1919]">{jobsByJobType.install}</span>
+                );
+              })}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
-              <span className="font-semibold text-[#3a423d]">Maintenance</span>
-              <span className="text-sm font-bold text-[#6B1919]">{jobsByJobType.maintenance}</span>
+          </div>
+
+          {/* Jobs by Area */}
+          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Jobs by Area</h2>
+            <div className="space-y-3">
+              {Object.entries(jobsByArea)
+                .sort((a, b) => b[1] - a[1])
+                .map(([area, count]) => (
+                  <div key={area} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
+                    <span className="font-mono font-bold text-[#3a423d]">{area}</span>
+                    <span className="text-xl font-bold text-[#6B1919]">{count}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Jobs by Assignment */}
+          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Jobs by Team Member</h2>
+            <div className="space-y-3">
+              {Object.entries(jobsByAssignment)
+                .sort((a, b) => b[1] - a[1])
+                .map(([assigned, count]) => (
+                  <div key={assigned} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
+                    <span className="font-semibold text-[#3a423d]">{assigned}</span>
+                    <span className="text-xl font-bold text-[#6B1919]">{count}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Job Types */}
+          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Job Types</h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
+                <span className="font-semibold text-[#3a423d]">Install</span>
+                <span className="text-xl font-bold text-[#6B1919]">{jobsByJobType.install}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
+                <span className="font-semibold text-[#3a423d]">Maintenance</span>
+                <span className="text-xl font-bold text-[#6B1919]">{jobsByJobType.maintenance}</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Completed Jobs by Time Range */}
-        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
-          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Completed Work</h2>
-          <div className="space-y-2">
+        <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+          <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Completed Work History</h2>
+          <div className="space-y-3">
             {ranges.map((range) => {
               const jobsInRange = getCompletedInRange(range.days);
               const priceInRange = jobsInRange.reduce((sum, j) => sum + (j.price ?? 0), 0);
               const daysInRange = jobsInRange.reduce((sum, j) => sum + (j.daysOfWork ?? 0), 0);
               return (
-                <div key={range.days} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
-                  <div>
-                    <p className="font-semibold text-[#3a423d]">{range.label}</p>
-                    <p className="text-sm text-[#8a928c]">{jobsInRange.length} jobs</p>
-                  </div>
-                  <div className="text-right">
-                    {priceInRange > 0 && <p className="font-semibold text-[#3a423d]">${priceInRange.toLocaleString()}</p>}
-                    {daysInRange > 0 && <p className="text-sm text-[#8a928c]">{daysInRange.toFixed(0)} days</p>}
+                <div key={range.days} className="rounded-lg bg-[#faf8f3] px-6 py-4 border-2 border-[#e8dcc8]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-[#3a423d] text-lg">{range.label}</p>
+                      <p className="text-base text-[#8a928c]">{jobsInRange.length} jobs completed</p>
+                    </div>
+                    <div className="text-right">
+                      {priceInRange > 0 && <p className="font-bold text-[#3a423d] text-lg">${priceInRange.toLocaleString()}</p>}
+                      {daysInRange > 0 && <p className="text-base text-[#8a928c]">{daysInRange.toFixed(0)} days work</p>}
+                    </div>
                   </div>
                 </div>
               );
