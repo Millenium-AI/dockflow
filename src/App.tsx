@@ -300,9 +300,11 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     const updated = layout.map((col) => {
       const gridItem = newLayout.find((item) => item.i === col.id);
       if (!gridItem) return col;
-      return { ...col, span: gridItem.w, position: gridItem.x };
+      return { ...col, span: gridItem.w };
     });
-    commitLayout(updated);
+    // Recalculate positions based on the new order
+    const withPositions = updated.map((col, idx) => ({ ...col, position: idx }));
+    commitLayout(withPositions);
   };
 
   const setAreaColor = (areaCode: string, color: AreaColorKey) => {
@@ -466,17 +468,20 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             onDragEnd={handleDragEnd}
           >
             <GridLayout
-              className="h-full"
-              layout={visibleColumns.map((col) => ({
-                x: col.position,
-                y: 0,
-                w: col.span,
-                h: 1,
-                i: col.id,
-              }))}
+              className="h-full w-full"
+              layout={visibleColumns.map((col, idx) => {
+                const x = visibleColumns.slice(0, idx).reduce((sum, c) => sum + c.span, 0);
+                return {
+                  x,
+                  y: 0,
+                  w: col.span,
+                  h: 1,
+                  i: col.id,
+                };
+              })}
               cols={12}
               rowHeight={Math.max(400, window.innerHeight - 220)}
-              width={gridWidth}
+              width={Math.max(gridWidth - 20, 100)}
               onLayoutChange={handleGridLayoutChange}
               isDraggable={true}
               isResizable={true}
@@ -484,7 +489,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               preventCollision={false}
               useCSSTransforms={true}
               containerPadding={[0, 0]}
-              margin={[12, 12]}
+              margin={[0, 12]}
             >
               {visibleColumns.map((col) => (
                 <div key={col.id}>

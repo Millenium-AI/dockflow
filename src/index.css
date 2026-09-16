@@ -8,10 +8,13 @@
 .react-grid-layout {
   position: relative;
   transition: height 200ms ease;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .react-grid-item {
   touch-action: none;
+  overflow: hidden;
 }
 
 .react-grid-item img {
