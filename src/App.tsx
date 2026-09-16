@@ -5,7 +5,7 @@ import {
 import {
   colorTokens, columnDefaults, defaultLayout, type ColorKey, type ColumnDefaults,
   type ColumnLayout, type Job, type JobStatus,
-} from '../dockflow/src/data';
+} from './data';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
 import { fetchLayout, saveLayout } from './lib/settings';
 
