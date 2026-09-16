@@ -13,7 +13,7 @@ import {
 } from './data';
 import { getSession, login, logout } from './lib/auth';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
-import { fetchAreaColors, saveAreaColors } from './lib/settings';
+import { fetchAreaColors, saveAreaColors, fetchAreaOpacity, saveAreaOpacity } from './lib/settings';
 
 const REFRESH_MS = 20_000;
 const fieldClass =
@@ -114,6 +114,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
 function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [areaColors, setAreaColors] = useState<AreaColorSettings>({});
+  const [areaOpacity, setAreaOpacity] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -159,6 +160,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
       setAreaColors(await fetchAreaColors());
     } catch (err) {
       console.error('Failed to load area colors:', err);
+    }
+
+    try {
+      setAreaOpacity(await fetchAreaOpacity());
+    } catch (err) {
+      console.error('Failed to load area opacity:', err);
     }
   }, []);
 
@@ -309,6 +316,26 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
         console.error('Failed to delete area color:', err);
         setOffline(true);
       });
+
+    if (areaCode in areaOpacity) {
+      const updatedOpacity = { ...areaOpacity };
+      delete updatedOpacity[areaCode];
+      setAreaOpacity(updatedOpacity);
+      saveAreaOpacity(updatedOpacity).catch((err) => {
+        console.error('Failed to clean up area opacity:', err);
+      });
+    }
+  };
+
+  const setAreaOpacityValue = (areaCode: string, opacity: number) => {
+    const updated = { ...areaOpacity, [areaCode]: opacity };
+    setAreaOpacity(updated);
+    saveAreaOpacity(updated)
+      .then(() => setOffline(false))
+      .catch((err) => {
+        console.error('Failed to save area opacity:', err);
+        setOffline(true);
+      });
   };
 
   const byStatus = useMemo(() => {
@@ -454,7 +481,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
                     style={{ gridColumn: gridSpec.items[i].gridColumn, gridRow: gridSpec.items[i].gridRow }}
                     className="h-full w-full min-h-0 overflow-hidden"
                   >
-                    <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                    <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
                   </div>
                 ))}
               </div>
@@ -462,19 +489,19 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               <div className="flex h-full w-full gap-3">
                 {/* Left: Ready (50%) */}
                 <div className="min-h-0 w-1/2 overflow-hidden">
-                  <BoardColumn col={visibleColumns[0]} jobs={byStatus[visibleColumns[0].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                  <BoardColumn col={visibleColumns[0]} jobs={byStatus[visibleColumns[0].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
                 </div>
                 {/* Right: Waiting (top 50%), Hold|Complete (bottom 50%) */}
                 <div className="flex min-h-0 w-1/2 flex-col gap-3 overflow-hidden">
                   <div className="min-h-0 flex-1 w-full overflow-hidden">
-                    <BoardColumn col={visibleColumns[1]} jobs={byStatus[visibleColumns[1].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                    <BoardColumn col={visibleColumns[1]} jobs={byStatus[visibleColumns[1].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
                   </div>
                   <div className="flex min-h-0 flex-1 w-full gap-3 overflow-hidden">
                     <div className="min-h-0 flex-1 w-full overflow-hidden">
-                      <BoardColumn col={visibleColumns[2]} jobs={byStatus[visibleColumns[2].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                      <BoardColumn col={visibleColumns[2]} jobs={byStatus[visibleColumns[2].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
                     </div>
                     <div className="min-h-0 flex-1 w-full overflow-hidden">
-                      <BoardColumn col={visibleColumns[3]} jobs={byStatus[visibleColumns[3].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                      <BoardColumn col={visibleColumns[3]} jobs={byStatus[visibleColumns[3].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
                     </div>
                   </div>
                 </div>
@@ -483,7 +510,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             <DragOverlay>
               {activeJob ? (
                 <div className="rotate-2 shadow-xl">
-                  <JobCardView job={activeJob} areaColor={areaColors[activeJob.area ?? ''] ?? 'none'} compact={activeCompact} />
+                  <JobCardView
+                    job={activeJob}
+                    areaColor={areaColors[activeJob.area ?? ''] ?? 'none'}
+                    opacity={areaOpacity[activeJob.area ?? ''] ?? 1}
+                    compact={activeCompact}
+                  />
                 </div>
               ) : null}
             </DragOverlay>
@@ -494,9 +526,11 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
       {showAreaSettings && (
         <AreaColorSettingsPanel
           areaColors={areaColors}
+          areaOpacity={areaOpacity}
           onClose={() => setShowAreaSettings(false)}
           onSetColor={setAreaColor}
           onDeleteColor={deleteAreaColor}
+          onSetOpacity={setAreaOpacityValue}
         />
       )}
 
@@ -550,11 +584,13 @@ function BoardColumn({
   jobs,
   onEdit,
   areaColors,
+  areaOpacity,
 }: {
   col: RenderColumn;
   jobs: Job[];
   onEdit: (job: Job) => void;
   areaColors: AreaColorSettings;
+  areaOpacity: Record<string, number>;
 }) {
   // Registers this column as a drop target in its own right, so dropping on
   // an empty (or mostly-empty) column still works even with no cards to land on.
@@ -594,6 +630,7 @@ function BoardColumn({
               onEdit={onEdit}
               compact={col.compact}
               areaColor={areaColors[job.area ?? ''] ?? 'none'}
+              opacity={areaOpacity[job.area ?? ''] ?? 1}
             />
           ))}
         </SortableContext>
@@ -602,16 +639,36 @@ function BoardColumn({
   );
 }
 
+/** Converts a hex color plus a 0–1 opacity into an rgba() string for backgrounds. */
+function hexToRgba(hex: string, opacity: number): string {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 /** Pure visual rendering of a job card — shared by the sortable card and the drag overlay preview. */
-function JobCardView({ job, areaColor, compact }: { job: Job; areaColor: AreaColorKey; compact?: boolean }) {
+function JobCardView({
+  job,
+  areaColor,
+  compact,
+  opacity = 1,
+}: {
+  job: Job;
+  areaColor: AreaColorKey;
+  compact?: boolean;
+  opacity?: number;
+}) {
   const areaHex = areaColorTokens[areaColor].hex;
   const isNone = areaColor === 'none';
+  const bgColor = hexToRgba(areaHex, opacity);
   return (
     <div
       className={`relative rounded-lg border select-none ${compact ? 'w-44' : ''} ${
         isNone ? 'border-[#e8dcc8] bg-white' : 'border-transparent'
       }`}
-      style={!isNone ? { backgroundColor: areaHex, borderColor: areaHex } : undefined}
+      style={!isNone ? { backgroundColor: bgColor, borderColor: areaHex } : undefined}
     >
       {job.jobType === 'maintenance' && (
         <span
@@ -648,11 +705,13 @@ function JobCard({
   onEdit,
   compact,
   areaColor,
+  opacity,
 }: {
   job: Job;
   onEdit: (job: Job) => void;
   compact?: boolean;
   areaColor: AreaColorKey;
+  opacity?: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
 
@@ -674,7 +733,7 @@ function JobCard({
         compact ? 'w-44' : ''
       }`}
     >
-      <JobCardView job={job} areaColor={areaColor} compact={compact} />
+      <JobCardView job={job} areaColor={areaColor} compact={compact} opacity={opacity} />
     </div>
   );
 }
@@ -946,25 +1005,22 @@ function JobForm({
 
 function AreaColorSettingsPanel({
   areaColors,
+  areaOpacity,
   onClose,
   onSetColor,
   onDeleteColor,
+  onSetOpacity,
 }: {
   areaColors: AreaColorSettings;
+  areaOpacity: Record<string, number>;
   onClose: () => void;
   onSetColor: (areaCode: string, color: AreaColorKey) => void;
   onDeleteColor: (areaCode: string) => void;
+  onSetOpacity: (areaCode: string, opacity: number) => void;
 }) {
   const [newArea, setNewArea] = useState('');
   const [editingArea, setEditingArea] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [areaOpacity, setAreaOpacity] = useState<Record<string, number>>(() => {
-    const opacities: Record<string, number> = {};
-    Object.keys(areaColors).forEach(key => {
-      opacities[key] = 1.0;
-    });
-    return opacities;
-  });
 
   const allAreas = Object.keys(areaColors).sort();
 
@@ -981,11 +1037,6 @@ function AreaColorSettingsPanel({
 
   const handleDelete = (area: string) => {
     onDeleteColor(area);
-    setAreaOpacity(prev => {
-      const updated = { ...prev };
-      delete updated[area];
-      return updated;
-    });
   };
 
   const handleAdd = () => {
@@ -1035,13 +1086,13 @@ function AreaColorSettingsPanel({
           {allAreas.length === 0 ? (
             <p className="text-sm text-[#8a928c] text-center py-8">Add an area to get started</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {allAreas.map((area) => (
-                <div key={area} className="rounded-lg border border-[#e8dcc8] p-3 bg-[#fffef9] space-y-2.5">
+                <div key={area} className="rounded-lg border border-[#e8dcc8] p-2.5 bg-[#fffef9] space-y-2">
                   <div className="flex items-center gap-2">
                     {editingArea === area ? (
                       <input
-                        className={`${fieldClass} flex-1`}
+                        className={`${fieldClass} flex-1 py-1`}
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value.toUpperCase())}
                         onKeyDown={(e) => {
@@ -1057,47 +1108,47 @@ function AreaColorSettingsPanel({
                           setEditingArea(area);
                           setEditValue(area);
                         }}
-                        className="font-mono font-bold text-[#3a423d] hover:text-[#6B1919] hover:underline text-left text-sm"
+                        className="font-mono font-bold text-[#3a423d] hover:text-[#6B1919] hover:underline text-left text-sm flex-1 truncate"
                         title="Click to edit"
                       >
                         {area}
                       </button>
                     )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
+                        <button
+                          key={key}
+                          onClick={() => onSetColor(area, key as AreaColorKey)}
+                          className={`h-5 w-5 rounded-full border-2 transition shrink-0 ${
+                            areaColors[area] === key ? 'scale-110 border-[#6B1919]' : 'border-transparent hover:scale-105'
+                          }`}
+                          style={{ background: hex }}
+                          title={label}
+                          aria-label={label}
+                        />
+                      ))}
+                    </div>
                     <button
                       onClick={() => handleDelete(area)}
                       className="rounded p-1 text-[#8a928c] hover:bg-[#fbf0ee] hover:text-[#b04a36] shrink-0"
                       aria-label={`Delete ${area}`}
                       title="Delete"
                     >
-                      <Trash2 size="1em" />
+                      <Trash2 size="0.9em" />
                     </button>
                   </div>
-                  <div className="flex items-center gap-1.5 px-1 flex-wrap">
-                    {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
-                      <button
-                        key={key}
-                        onClick={() => onSetColor(area, key as AreaColorKey)}
-                        className={`h-8 w-8 rounded-full border-2 transition shrink-0 ${
-                          areaColors[area] === key ? 'scale-110 border-[#6B1919]' : 'border-transparent hover:scale-105'
-                        }`}
-                        style={{ background: hex }}
-                        title={label}
-                        aria-label={label}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-3 px-1">
-                    <label className="text-xs font-semibold text-[#8a928c] shrink-0">Opacity:</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-semibold text-[#8a928c] shrink-0 w-12">Opacity</label>
                     <input
                       type="range"
-                      min="0"
+                      min="10"
                       max="100"
-                      value={(areaOpacity[area] ?? 1.0) * 100}
-                      onChange={(e) => setAreaOpacity(prev => ({ ...prev, [area]: parseInt(e.target.value) / 100 }))}
-                      className="flex-1 h-2 bg-[#e8dcc8] rounded-lg appearance-none cursor-pointer accent-[#6B1919]"
+                      value={Math.round((areaOpacity[area] ?? 1) * 100)}
+                      onChange={(e) => onSetOpacity(area, Number(e.target.value) / 100)}
+                      className="flex-1 h-1.5 bg-[#e8dcc8] rounded-lg appearance-none cursor-pointer accent-[#6B1919]"
                     />
-                    <span className="text-xs font-semibold text-[#8a928c] shrink-0 w-8 text-right">
-                      {Math.round((areaOpacity[area] ?? 1.0) * 100)}%
+                    <span className="text-[11px] font-semibold text-[#8a928c] shrink-0 w-8 text-right">
+                      {Math.round((areaOpacity[area] ?? 1) * 100)}%
                     </span>
                   </div>
                 </div>

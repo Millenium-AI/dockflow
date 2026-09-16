@@ -20,7 +20,7 @@ export async function fetchAreaColors(): Promise<AreaColorSettings> {
     const { error: insertError } = await supabase.from(TABLE).insert({
       id: 1,
       columns: LEGACY_COLUMNS_PLACEHOLDER,
-      area_colors: defaultAreaColors
+      area_colors: defaultAreaColors,
     });
     if (insertError) throw insertError;
     return defaultAreaColors;
@@ -31,5 +31,19 @@ export async function fetchAreaColors(): Promise<AreaColorSettings> {
 
 export async function saveAreaColors(areaColors: AreaColorSettings): Promise<void> {
   const { error } = await supabase.from(TABLE).upsert({ id: 1, columns: LEGACY_COLUMNS_PLACEHOLDER, area_colors: areaColors });
+  if (error) throw error;
+}
+
+/** Reads per-area opacity (0-1 scale). Defaults to an empty map -- callers should treat a missing key as 1 (fully opaque). */
+export async function fetchAreaOpacity(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from(TABLE).select('area_opacity').eq('id', 1).maybeSingle();
+  if (error) throw error;
+  return (data?.area_opacity ?? {}) as Record<string, number>;
+}
+
+export async function saveAreaOpacity(areaOpacity: Record<string, number>): Promise<void> {
+  const { error } = await supabase
+    .from(TABLE)
+    .upsert({ id: 1, columns: LEGACY_COLUMNS_PLACEHOLDER, area_opacity: areaOpacity });
   if (error) throw error;
 }
