@@ -17,6 +17,7 @@ interface Row {
   job_type: JobType | null;
   sort_order: number | null;
   files: JobFile[] | null;
+  completed_at: string | null;
 }
 
 const fromRow = (r: Row): Job => ({
@@ -32,6 +33,7 @@ const fromRow = (r: Row): Job => ({
   jobType: r.job_type ?? 'install',
   sortOrder: r.sort_order ?? undefined,
   files: r.files ?? [],
+  completedAt: r.completed_at ?? undefined,
 });
 
 const toRow = (j: Job) => ({
@@ -47,6 +49,7 @@ const toRow = (j: Job) => ({
   job_type: j.jobType || 'install',
   sort_order: typeof j.sortOrder === 'number' ? j.sortOrder : null,
   files: j.files && j.files.length > 0 ? j.files : null,
+  completed_at: j.completedAt || null,
 });
 
 export async function fetchJobs(): Promise<Job[]> {
@@ -73,10 +76,18 @@ export async function removeJob(id: string): Promise<void> {
  * Puts `orderedIds` into `status`, in that exact order, by writing 0..n-1
  * into sort_order for each. Used for every drag: moving within a column,
  * moving to a different column, and dropping at a specific spot in either.
+ * If moving to 'complete', sets completed_at to now.
  */
 export async function reorderColumn(status: JobStatus, orderedIds: string[]): Promise<void> {
+  const update = status === 'complete'
+    ? { status, sort_order: null as any, completed_at: new Date().toISOString() }
+    : { status, sort_order: null as any };
+
   await Promise.all(
-    orderedIds.map((id, index) => supabase.from(TABLE).update({ status, sort_order: index }).eq('id', id))
+    orderedIds.map((id, index) => {
+      const finalUpdate = { ...update, sort_order: index };
+      return supabase.from(TABLE).update(finalUpdate).eq('id', id);
+    })
   );
 }
 

@@ -13,7 +13,7 @@ import {
 } from './data';
 import { getSession, login, logout } from './lib/auth';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
-import { fetchAreaColors, saveAreaColors, fetchAreaOpacity, saveAreaOpacity } from './lib/settings';
+import { fetchAreaColors, saveAreaColors, fetchAreaOpacity, saveAreaOpacity, fetchHideOldCompleted, saveHideOldCompleted } from './lib/settings';
 
 const REFRESH_MS = 20_000;
 const fieldClass =
@@ -115,6 +115,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [areaColors, setAreaColors] = useState<AreaColorSettings>({});
   const [areaOpacity, setAreaOpacity] = useState<Record<string, number>>({});
+  const [hideOldCompleted, setHideOldCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -167,6 +168,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     } catch (err) {
       console.error('Failed to load area opacity:', err);
     }
+
+    try {
+      setHideOldCompleted(await fetchHideOldCompleted());
+    } catch (err) {
+      console.error('Failed to load hide old completed setting:', err);
+    }
   }, []);
 
   useEffect(() => {
@@ -198,10 +205,14 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const handleSave = async (job: Job) => {
     const isNew = !jobs.some((j) => j.id === job.id);
     const statusChanged = editing && editing.status !== job.status;
-    const finalJob =
+    let finalJob =
       isNew || statusChanged
         ? { ...job, sortOrder: jobs.filter((j) => j.status === job.status && j.id !== job.id).length }
         : job;
+
+    if ((isNew || statusChanged) && job.status === 'complete') {
+      finalJob = { ...finalJob, completedAt: new Date().toISOString() };
+    }
 
     setEditing(null);
     setShowForm(false);
@@ -341,12 +352,20 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const byStatus = useMemo(() => {
     const q = search.trim().toLowerCase();
     const groups: Record<string, Job[]> = {};
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
     for (const j of jobs) {
       if (q && !`${j.customerName} ${j.scope} ${j.area} ${j.assignedTo} ${j.note}`.toLowerCase().includes(q)) continue;
+
+      if (hideOldCompleted && j.status === 'complete' && j.completedAt) {
+        const completedDate = new Date(j.completedAt);
+        if (completedDate < thirtyDaysAgo) continue;
+      }
+
       (groups[j.status] ??= []).push(j);
     }
     return groups;
-  }, [jobs, search]);
+  }, [jobs, search, hideOldCompleted, now]);
 
   const layoutSpec = tabLayoutSpecs[viewTab];
   const visibleColumns: RenderColumn[] = useMemo(
@@ -431,7 +450,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             className="flex items-center gap-1.5 rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f5f1e8]"
             aria-label="Area colors"
           >
-            <Settings size="1em" /> Areas
+            <Settings size="1em" /> Settings
           </button>
           <button
             onClick={() => {
@@ -527,10 +546,20 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
         <AreaColorSettingsPanel
           areaColors={areaColors}
           areaOpacity={areaOpacity}
+          hideOldCompleted={hideOldCompleted}
           onClose={() => setShowAreaSettings(false)}
           onSetColor={setAreaColor}
           onDeleteColor={deleteAreaColor}
           onSetOpacity={setAreaOpacityValue}
+          onSetHideOldCompleted={(val) => {
+            setHideOldCompleted(val);
+            saveHideOldCompleted(val)
+              .then(() => setOffline(false))
+              .catch((err) => {
+                console.error('Failed to save hide old completed setting:', err);
+                setOffline(true);
+              });
+          }}
         />
       )}
 
@@ -1006,17 +1035,21 @@ function JobForm({
 function AreaColorSettingsPanel({
   areaColors,
   areaOpacity,
+  hideOldCompleted,
   onClose,
   onSetColor,
   onDeleteColor,
   onSetOpacity,
+  onSetHideOldCompleted,
 }: {
   areaColors: AreaColorSettings;
   areaOpacity: Record<string, number>;
+  hideOldCompleted: boolean;
   onClose: () => void;
   onSetColor: (areaCode: string, color: AreaColorKey) => void;
   onDeleteColor: (areaCode: string) => void;
   onSetOpacity: (areaCode: string, opacity: number) => void;
+  onSetHideOldCompleted: (val: boolean) => void;
 }) {
   const [newArea, setNewArea] = useState('');
   const [editingArea, setEditingArea] = useState<string | null>(null);
@@ -1059,7 +1092,7 @@ function AreaColorSettingsPanel({
           </button>
         </div>
 
-        <div className="flex flex-col gap-3 px-5 py-4 shrink-0 border-b border-[#e8dcc8]">
+        <div className="flex flex-col gap-4 px-5 py-4 shrink-0 border-b border-[#e8dcc8]">
           <div>
             <label className={labelClass}>Add new area</label>
             <div className="mt-2 flex gap-2">
@@ -1079,6 +1112,18 @@ function AreaColorSettingsPanel({
                 <Plus size="1.2em" />
               </button>
             </div>
+          </div>
+
+          <div className="border-t border-[#e8dcc8] pt-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hideOldCompleted}
+                onChange={(e) => onSetHideOldCompleted(e.target.checked)}
+                className="w-4 h-4 accent-[#6B1919]"
+              />
+              <span className={labelClass}>Hide completed jobs older than 30 days</span>
+            </label>
           </div>
         </div>
 

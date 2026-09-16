@@ -47,3 +47,17 @@ export async function saveAreaOpacity(areaOpacity: Record<string, number>): Prom
     .upsert({ id: 1, columns: LEGACY_COLUMNS_PLACEHOLDER, area_opacity: areaOpacity });
   if (error) throw error;
 }
+
+/** Reads whether to hide completed jobs older than 30 days. Defaults to false. */
+export async function fetchHideOldCompleted(): Promise<boolean> {
+  const { data, error } = await supabase.from(TABLE).select('hide_old_completed').eq('id', 1).maybeSingle();
+  if (error) throw error;
+  return (data?.hide_old_completed ?? false) as boolean;
+}
+
+export async function saveHideOldCompleted(hideOldCompleted: boolean): Promise<void> {
+  const { error } = await supabase
+    .from(TABLE)
+    .upsert({ id: 1, columns: LEGACY_COLUMNS_PLACEHOLDER, hide_old_completed: hideOldCompleted });
+  if (error) throw error;
+}

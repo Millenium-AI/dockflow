@@ -29,6 +29,8 @@ export interface Job {
   sortOrder?: number;
   /** Attached files and documents. */
   files?: JobFile[];
+  /** Timestamp when the job was moved to 'complete' status. */
+  completedAt?: string;
 }
 
 export const jobTypeTokens: Record<JobType, { label: string; hex: string }> = {
