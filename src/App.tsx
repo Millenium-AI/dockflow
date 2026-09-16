@@ -146,11 +146,15 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const refresh = useCallback(async () => {
     // Jobs are the core data — if this fails, show the offline banner.
     try {
-      const jobRows = await fetchJobs();
+      const [jobRows, techs] = await Promise.all([
+        fetchJobs(),
+        fetchColumnTechs(),
+      ]);
       setJobs(jobRows);
+      setColumnTechs(techs);
       setOffline(false);
     } catch (err) {
-      console.error('Failed to load jobs:', err);
+      console.error('Failed to load jobs or techs:', err);
       setOffline(true);
     } finally {
       setLoading(false);
@@ -174,12 +178,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
       setHideOldCompleted(await fetchHideOldCompleted());
     } catch (err) {
       console.error('Failed to load hide old completed setting:', err);
-    }
-
-    try {
-      setColumnTechs(await fetchColumnTechs());
-    } catch (err) {
-      console.error('Failed to load column techs:', err);
     }
   }, []);
 
