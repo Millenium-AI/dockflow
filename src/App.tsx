@@ -18,7 +18,7 @@ import { fetchAreaColors, fetchLayout, saveAreaColors, saveLayout } from './lib/
 
 const REFRESH_MS = 20_000;
 const fieldClass =
-  'w-full rounded-lg border border-[#dde2dc] bg-white px-3 py-2 text-sm text-[#2c3230] outline-none transition focus:border-[#5b8a9e] focus:ring-2 focus:ring-[#5b8a9e]/20';
+  'w-full rounded-lg border border-[#e8dcc8] bg-white px-3 py-2 text-sm text-[#2c3230] outline-none transition focus:border-[#6B1919] focus:ring-2 focus:ring-[#6B1919]/20';
 const labelClass = 'text-sm font-semibold text-[#8a928c]';
 
 type RenderColumn = ColumnDefaults & ColumnLayout;
@@ -66,12 +66,15 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-[#f5f6f3]">
+    <div className="flex h-screen items-center justify-center bg-[#faf8f3]">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-xl border border-[#e0e4de] bg-white p-6 shadow-xl"
+        className="w-full max-w-sm rounded-xl border border-[#e8dcc8] bg-white p-6 shadow-xl"
       >
-        <h1 className="text-lg font-bold text-[#232826]">Job Board</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <img src="/src/dockflow.png" alt="SMC" className="h-8 w-8" />
+          <h1 className="text-lg font-bold text-[#6B1919]">Job Board</h1>
+        </div>
         <p className="mt-1 text-sm text-[#8a928c]">Sign in to continue.</p>
         <div className="mt-4 space-y-3">
           <div>
@@ -100,7 +103,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
         <button
           type="submit"
           disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-[#2f5260] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#24414c] disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 w-full rounded-lg bg-[#6B1919] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#521212] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
@@ -122,6 +125,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [showSettings, setShowSettings] = useState(false);
   const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [viewTab, setViewTab] = useState<'barges' | 'other'>('barges');
 
   // dnd-kit: id of the job card currently being dragged, if any.
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -343,12 +347,19 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   }, [jobs, search]);
 
   const visibleColumns: RenderColumn[] = useMemo(
-    () =>
-      layout
+    () => {
+      const allVisible = layout
         .filter((c) => c.visible)
         .sort((a, b) => a.position - b.position)
-        .map((c) => ({ ...columnDefaults.find((d) => d.id === c.id)!, ...c })),
-    [layout]
+        .map((c) => ({ ...columnDefaults.find((d) => d.id === c.id)!, ...c }));
+
+      if (viewTab === 'barges') {
+        return allVisible.filter((c) => c.id.startsWith('barge-'));
+      } else {
+        return allVisible.filter((c) => !c.id.startsWith('barge-'));
+      }
+    },
+    [layout, viewTab]
   );
 
   const openEdit = (job: Job) => {
@@ -360,10 +371,33 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const activeCompact = activeJob ? visibleColumns.find((c) => c.id === activeJob.status)?.compact : false;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f5f6f3] text-[#232826]">
-      <header className="flex items-center justify-between gap-4 border-b border-[#e2e6e1] px-5 py-3">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#faf8f3] text-[#232826]">
+      <header className="flex items-center justify-between gap-4 border-b border-[#e8dcc8] px-5 py-3 bg-white">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-xl font-bold tracking-tight">Job Board</h1>
+          <img src="/src/dockflow.png" alt="SMC" className="h-8 w-8" />
+          <h1 className="text-xl font-bold tracking-tight text-[#6B1919]">Job Board</h1>
+          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1">
+            <button
+              onClick={() => setViewTab('barges')}
+              className={`px-3 py-1.5 text-sm font-semibold rounded transition ${
+                viewTab === 'barges'
+                  ? 'bg-[#6B1919] text-white'
+                  : 'text-[#3a423d] hover:bg-[#f5f1e8]'
+              }`}
+            >
+              Barges
+            </button>
+            <button
+              onClick={() => setViewTab('other')}
+              className={`px-3 py-1.5 text-sm font-semibold rounded transition ${
+                viewTab === 'other'
+                  ? 'bg-[#6B1919] text-white'
+                  : 'text-[#3a423d] hover:bg-[#f5f1e8]'
+              }`}
+            >
+              Status
+            </button>
+          </div>
           <span className="text-sm text-[#9aa29c]">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </span>
@@ -377,7 +411,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           <div className="relative">
             <Search size="1em" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9aa29c]" />
             <input
-              className="w-40 rounded-lg border border-[#dde2dc] bg-white py-1.5 pl-8 pr-3 text-sm outline-none transition focus:border-[#5b8a9e]"
+              className="w-40 rounded-lg border border-[#e8dcc8] bg-[#fffef9] py-1.5 pl-8 pr-3 text-sm outline-none transition focus:border-[#6B1919] focus:ring-2 focus:ring-[#bf9f21]/20"
               placeholder="Search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -385,14 +419,14 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           </div>
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#dde2dc] bg-white px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f0f3ef]"
+            className="flex items-center gap-1.5 rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f5f1e8]"
             aria-label="Board settings"
           >
             <Settings size="1em" /> Columns
           </button>
           <button
             onClick={() => setShowAreaSettings(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#dde2dc] bg-white px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f0f3ef]"
+            className="flex items-center gap-1.5 rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f5f1e8]"
             aria-label="Area colors"
           >
             <Settings size="1em" /> Areas
@@ -402,15 +436,15 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               setEditing(null);
               setShowForm(true);
             }}
-            className="flex items-center gap-1.5 rounded-lg bg-[#2f5260] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#24414c]"
+            className="flex items-center gap-1.5 rounded-lg bg-[#6B1919] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212]"
           >
             <Plus size="1em" /> Add job
           </button>
-          <div className="ml-1 flex items-center gap-2 border-l border-[#e2e6e1] pl-3">
+          <div className="ml-1 flex items-center gap-2 border-l border-[#e8dcc8] pl-3">
             <span className="text-xs text-[#9aa29c]">{email}</span>
             <button
               onClick={onLogout}
-              className="rounded-lg p-1.5 text-[#8a928c] hover:bg-[#f0f3ef]"
+              className="rounded-lg p-1.5 text-[#8a928c] hover:bg-[#f5f1e8]"
               aria-label="Sign out"
               title="Sign out"
             >
@@ -493,7 +527,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           onClick={() => setConfirmDelete(null)}
         >
           <div
-            className="pop-in rounded-xl border border-[#e0e4de] bg-white p-5 shadow-xl"
+            className="pop-in rounded-xl border border-[#e8dcc8] bg-white p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base font-semibold">Delete this job?</p>
@@ -536,12 +570,12 @@ function SettingsPanel({
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
       <div
-        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e0e4de] bg-white shadow-xl"
+        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e8dcc8] bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#ecefed] px-5 py-3">
-          <h2 className="text-lg font-bold">Columns</h2>
-          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f0f3ef]" aria-label="Close">
+        <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3">
+          <h2 className="text-lg font-bold text-[#6B1919]">Columns</h2>
+          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f5f1e8]" aria-label="Close">
             <X size="1em" />
           </button>
         </div>
@@ -551,15 +585,15 @@ function SettingsPanel({
             return (
               <div
                 key={col.id}
-                className={`flex items-center gap-2 rounded-lg border border-[#e4e8e3] px-3 py-2 ${
-                  col.visible ? 'bg-white' : 'bg-[#f5f6f3] opacity-60'
+                className={`flex items-center gap-2 rounded-lg border border-[#e8dcc8] px-3 py-2 ${
+                  col.visible ? 'bg-white' : 'bg-[#faf8f3] opacity-60'
                 }`}
               >
                 <div className="flex flex-col">
                   <button
                     onClick={() => onMove(col.id, -1)}
                     disabled={i === 0}
-                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f0f3ef] disabled:opacity-25"
+                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f5f1e8] disabled:opacity-25"
                     aria-label={`Move ${meta.label} up`}
                   >
                     <ChevronUp size="1em" />
@@ -567,7 +601,7 @@ function SettingsPanel({
                   <button
                     onClick={() => onMove(col.id, 1)}
                     disabled={i === sorted.length - 1}
-                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f0f3ef] disabled:opacity-25"
+                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f5f1e8] disabled:opacity-25"
                     aria-label={`Move ${meta.label} down`}
                   >
                     <ChevronDown size="1em" />
@@ -579,7 +613,7 @@ function SettingsPanel({
                   <button
                     onClick={() => onChangeSpan(col.id, -1)}
                     disabled={col.span <= 1}
-                    className="rounded p-1 hover:bg-[#f0f3ef] disabled:opacity-25"
+                    className="rounded p-1 hover:bg-[#f5f1e8] disabled:opacity-25"
                     aria-label={`Narrower ${meta.label}`}
                   >
                     <Minus size="0.9em" />
@@ -588,7 +622,7 @@ function SettingsPanel({
                   <button
                     onClick={() => onChangeSpan(col.id, 1)}
                     disabled={col.span >= 12}
-                    className="rounded p-1 hover:bg-[#f0f3ef] disabled:opacity-25"
+                    className="rounded p-1 hover:bg-[#f5f1e8] disabled:opacity-25"
                     aria-label={`Wider ${meta.label}`}
                   >
                     <Plus size="0.9em" />
@@ -596,7 +630,7 @@ function SettingsPanel({
                 </div>
                 <button
                   onClick={() => onToggleVisible(col.id)}
-                  className="rounded p-1.5 text-[#6a726c] hover:bg-[#f0f3ef]"
+                  className="rounded p-1.5 text-[#6a726c] hover:bg-[#f5f1e8]"
                   aria-label={col.visible ? `Hide ${meta.label}` : `Show ${meta.label}`}
                 >
                   {col.visible ? <Eye size="1em" /> : <EyeOff size="1em" />}
@@ -605,7 +639,7 @@ function SettingsPanel({
             );
           })}
         </div>
-        <div className="border-t border-[#ecefed] px-5 py-3 text-xs text-[#8a928c]">
+        <div className="border-t border-[#e8dcc8] px-5 py-3 text-xs text-[#8a928c]">
           Width is out of 12 per row — columns wrap to a new row once a row fills up. Hiding a column keeps its jobs; they reappear when you show it again.
         </div>
       </div>
@@ -632,8 +666,8 @@ function BoardColumn({
   return (
     <div
       style={{ gridColumn: `span ${col.span} / span ${col.span}` }}
-      className={`flex min-h-0 flex-col rounded-xl border bg-[#fafbfa] transition ${
-        isOver ? 'border-[#5b8a9e] bg-[#edf2f4]' : 'border-[#e2e6e1]'
+      className={`flex min-h-0 flex-col rounded-xl border bg-white transition ${
+        isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
       <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-2.5">
@@ -647,7 +681,7 @@ function BoardColumn({
       >
         <SortableContext items={jobIds} strategy={col.compact ? rectSortingStrategy : verticalListSortingStrategy}>
           {jobs.length === 0 && (
-            <div className="w-full rounded-lg border border-dashed border-[#d8ddd7] py-5 text-center">
+            <div className="w-full rounded-lg border border-dashed border-[#e8dcc8] py-5 text-center">
               <p className="text-sm text-[#a8b0aa]">Nothing here</p>
             </div>
           )}
@@ -673,7 +707,7 @@ function JobCardView({ job, areaColor, compact }: { job: Job; areaColor: AreaCol
   return (
     <div
       className={`relative rounded-lg border select-none ${compact ? 'w-44' : ''} ${
-        isNone ? 'border-[#e4e8e3] bg-white' : 'border-transparent'
+        isNone ? 'border-[#e8dcc8] bg-white' : 'border-transparent'
       }`}
       style={!isNone ? { backgroundColor: areaHex, borderColor: areaHex } : undefined}
     >
@@ -765,12 +799,12 @@ function JobForm({
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
       <div
-        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e0e4de] bg-white shadow-xl"
+        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e8dcc8] bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#ecefed] px-5 py-3">
-          <h2 className="text-lg font-bold">{job ? 'Edit job' : 'Add job'}</h2>
-          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f0f3ef]" aria-label="Close">
+        <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3">
+          <h2 className="text-lg font-bold text-[#6B1919]">{job ? 'Edit job' : 'Add job'}</h2>
+          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f5f1e8]" aria-label="Close">
             <X size="1em" />
           </button>
         </div>
@@ -800,7 +834,7 @@ function JobForm({
                         type="button"
                         onClick={() => set('area', active ? '' : area)}
                         className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition ${
-                          active ? 'border-transparent text-white' : 'border-[#dde2dc] text-[#5a625c] hover:border-[#b7bdb6]'
+                          active ? 'border-transparent text-white' : 'border-[#e8dcc8] text-[#5a625c] hover:border-[#d8cbb5]'
                         }`}
                         style={active ? { background: hex } : undefined}
                       >
@@ -858,7 +892,7 @@ function JobForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#ecefed] px-5 py-3">
+        <div className="flex items-center justify-between border-t border-[#e8dcc8] px-5 py-3">
           <div>
             {onDelete && job && (
               <button
@@ -870,13 +904,13 @@ function JobForm({
             )}
           </div>
           <div className="flex gap-2">
-            <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#6a726c] hover:bg-[#f0f3ef]">
+            <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#6a726c] hover:bg-[#f5f1e8]">
               Cancel
             </button>
             <button
               onClick={() => draft.customerName.trim() && onSave(draft)}
               disabled={!draft.customerName.trim()}
-              className="rounded-lg bg-[#2f5260] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#24414c] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-[#6B1919] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {job ? 'Save' : 'Add job'}
             </button>
@@ -941,17 +975,17 @@ function AreaColorSettingsPanel({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
       <div
-        className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e0e4de] bg-white shadow-xl flex flex-col"
+        className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#ecefed] px-5 py-3 shrink-0">
-          <h2 className="text-lg font-bold">Area Colors</h2>
-          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f0f3ef]" aria-label="Close">
+        <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
+          <h2 className="text-lg font-bold text-[#6B1919]">Area Colors</h2>
+          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f5f1e8]" aria-label="Close">
             <X size="1em" />
           </button>
         </div>
 
-        <div className="flex flex-col gap-3 px-5 py-4 shrink-0 border-b border-[#ecefed]">
+        <div className="flex flex-col gap-3 px-5 py-4 shrink-0 border-b border-[#e8dcc8]">
           <div>
             <label className={labelClass}>Add new area</label>
             <div className="mt-2 flex gap-2">
@@ -966,7 +1000,7 @@ function AreaColorSettingsPanel({
               <button
                 onClick={handleAdd}
                 disabled={!newArea || allAreas.includes(newArea)}
-                className="rounded-lg bg-[#2f5260] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#24414c] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                className="rounded-lg bg-[#6B1919] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#521212] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 <Plus size="1.2em" />
               </button>
@@ -980,7 +1014,7 @@ function AreaColorSettingsPanel({
           ) : (
             <div className="space-y-3">
               {allAreas.map((area) => (
-                <div key={area} className="rounded-lg border border-[#e4e8e3] p-3 bg-[#fafbfa] space-y-2.5">
+                <div key={area} className="rounded-lg border border-[#e8dcc8] p-3 bg-[#fffef9] space-y-2.5">
                   <div className="flex items-center gap-2">
                     {editingArea === area ? (
                       <input
@@ -1000,7 +1034,7 @@ function AreaColorSettingsPanel({
                           setEditingArea(area);
                           setEditValue(area);
                         }}
-                        className="font-mono font-bold text-[#3a423d] hover:text-[#2f5260] hover:underline text-left text-sm"
+                        className="font-mono font-bold text-[#3a423d] hover:text-[#6B1919] hover:underline text-left text-sm"
                         title="Click to edit"
                       >
                         {area}
@@ -1021,7 +1055,7 @@ function AreaColorSettingsPanel({
                         key={key}
                         onClick={() => onSetColor(area, key as AreaColorKey)}
                         className={`h-8 w-8 rounded-full border-2 transition shrink-0 ${
-                          areaColors[area] === key ? 'scale-110 border-[#2a312d]' : 'border-transparent hover:scale-105'
+                          areaColors[area] === key ? 'scale-110 border-[#6B1919]' : 'border-transparent hover:scale-105'
                         }`}
                         style={{ background: hex }}
                         title={label}
@@ -1037,7 +1071,7 @@ function AreaColorSettingsPanel({
                       max="100"
                       value={(areaOpacity[area] ?? 1.0) * 100}
                       onChange={(e) => setAreaOpacity(prev => ({ ...prev, [area]: parseInt(e.target.value) / 100 }))}
-                      className="flex-1 h-2 bg-[#dde2dc] rounded-lg appearance-none cursor-pointer accent-[#2f5260]"
+                      className="flex-1 h-2 bg-[#e8dcc8] rounded-lg appearance-none cursor-pointer accent-[#6B1919]"
                     />
                     <span className="text-xs font-semibold text-[#8a928c] shrink-0 w-8 text-right">
                       {Math.round((areaOpacity[area] ?? 1.0) * 100)}%
@@ -1049,10 +1083,10 @@ function AreaColorSettingsPanel({
           )}
         </div>
 
-        <div className="border-t border-[#ecefed] px-5 py-3 flex justify-end shrink-0 gap-2">
+        <div className="border-t border-[#e8dcc8] px-5 py-3 flex justify-end shrink-0 gap-2">
           <button
             onClick={onClose}
-            className="rounded-lg bg-[#2f5260] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#24414c]"
+            className="rounded-lg bg-[#6B1919] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212]"
           >
             Done
           </button>
