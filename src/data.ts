@@ -21,7 +21,6 @@ export interface Job {
   note?: string;
   status: JobStatus;
   scheduledDate?: string;
-  assignedTo?: string;
   priority?: JobPriority;
   /** Independent of status/area — flags the kind of work, e.g. a repair vs a new install. */
   jobType?: JobType;

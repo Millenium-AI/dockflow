@@ -61,3 +61,17 @@ export async function saveHideOldCompleted(hideOldCompleted: boolean): Promise<v
     .upsert({ id: 1, columns: LEGACY_COLUMNS_PLACEHOLDER, hide_old_completed: hideOldCompleted });
   if (error) throw error;
 }
+
+/** Reads tech leads for each column. Defaults to an empty map. */
+export async function fetchColumnTechs(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from(TABLE).select('column_techs').eq('id', 1).maybeSingle();
+  if (error) throw error;
+  return (data?.column_techs ?? {}) as Record<string, string>;
+}
+
+export async function saveColumnTechs(columnTechs: Record<string, string>): Promise<void> {
+  const { error } = await supabase
+    .from(TABLE)
+    .upsert({ id: 1, columns: LEGACY_COLUMNS_PLACEHOLDER, column_techs: columnTechs });
+  if (error) throw error;
+}

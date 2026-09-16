@@ -13,7 +13,7 @@ import {
 } from './data';
 import { getSession, login, logout } from './lib/auth';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
-import { fetchAreaColors, saveAreaColors, fetchAreaOpacity, saveAreaOpacity, fetchHideOldCompleted, saveHideOldCompleted } from './lib/settings';
+import { fetchAreaColors, saveAreaColors, fetchAreaOpacity, saveAreaOpacity, fetchHideOldCompleted, saveHideOldCompleted, fetchColumnTechs, saveColumnTechs } from './lib/settings';
 
 const REFRESH_MS = 20_000;
 const fieldClass =
@@ -125,6 +125,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>('barges');
+  const [columnTechs, setColumnTechs] = useState<Record<string, string>>({});
   const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(() => {
     const saved = localStorage.getItem('dockflow_font_size');
     return (saved as 'sm' | 'md' | 'lg' | 'xl') ?? 'md';
@@ -174,12 +175,29 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     } catch (err) {
       console.error('Failed to load hide old completed setting:', err);
     }
+
+    try {
+      setColumnTechs(await fetchColumnTechs());
+    } catch (err) {
+      console.error('Failed to load column techs:', err);
+    }
   }, []);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--font-size', fontSizeMap[fontSize]);
     localStorage.setItem('dockflow_font_size', fontSize);
   }, [fontSize]);
+
+  const updateColumnTech = (colId: string, tech: string) => {
+    const updated = { ...columnTechs, [colId]: tech };
+    setColumnTechs(updated);
+    saveColumnTechs(updated)
+      .then(() => setOffline(false))
+      .catch((err) => {
+        console.error('Failed to save column tech:', err);
+        setOffline(true);
+      });
+  };
 
   useEffect(() => {
     refresh();
@@ -512,7 +530,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
                     style={{ gridColumn: gridSpec.items[i].gridColumn, gridRow: gridSpec.items[i].gridRow }}
                     className="h-full w-full min-h-0 overflow-hidden"
                   >
-                    <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
+                    <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[col.id] ?? ''} onTechChange={updateColumnTech} />
                   </div>
                 ))}
               </div>
@@ -520,19 +538,19 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               <div className="flex h-full w-full gap-3">
                 {/* Left: Ready (50%) */}
                 <div className="min-h-0 w-1/2 overflow-hidden">
-                  <BoardColumn col={visibleColumns[0]} jobs={byStatus[visibleColumns[0].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
+                  <BoardColumn col={visibleColumns[0]} jobs={byStatus[visibleColumns[0].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[0].id] ?? ''} onTechChange={updateColumnTech} />
                 </div>
                 {/* Right: Waiting (top 50%), Hold|Complete (bottom 50%) */}
                 <div className="flex min-h-0 w-1/2 flex-col gap-3 overflow-hidden">
                   <div className="min-h-0 flex-1 w-full overflow-hidden">
-                    <BoardColumn col={visibleColumns[1]} jobs={byStatus[visibleColumns[1].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
+                    <BoardColumn col={visibleColumns[1]} jobs={byStatus[visibleColumns[1].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[1].id] ?? ''} onTechChange={updateColumnTech} />
                   </div>
                   <div className="flex min-h-0 flex-1 w-full gap-3 overflow-hidden">
                     <div className="min-h-0 flex-1 w-full overflow-hidden">
-                      <BoardColumn col={visibleColumns[2]} jobs={byStatus[visibleColumns[2].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
+                      <BoardColumn col={visibleColumns[2]} jobs={byStatus[visibleColumns[2].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[2].id] ?? ''} onTechChange={updateColumnTech} />
                     </div>
                     <div className="min-h-0 flex-1 w-full overflow-hidden">
-                      <BoardColumn col={visibleColumns[3]} jobs={byStatus[visibleColumns[3].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} />
+                      <BoardColumn col={visibleColumns[3]} jobs={byStatus[visibleColumns[3].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[3].id] ?? ''} onTechChange={updateColumnTech} />
                     </div>
                   </div>
                 </div>
@@ -626,17 +644,32 @@ function BoardColumn({
   onEdit,
   areaColors,
   areaOpacity,
+  tech,
+  onTechChange,
 }: {
   col: RenderColumn;
   jobs: Job[];
   onEdit: (job: Job) => void;
   areaColors: AreaColorSettings;
   areaOpacity: Record<string, number>;
+  tech?: string;
+  onTechChange?: (colId: string, tech: string) => void;
 }) {
+  const [editingTech, setEditingTech] = useState(false);
+  const [techValue, setTechValue] = useState(tech ?? '');
+  const isBarge = col.id.startsWith('barge-');
+
   // Registers this column as a drop target in its own right, so dropping on
   // an empty (or mostly-empty) column still works even with no cards to land on.
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   const jobIds = useMemo(() => jobs.map((j) => j.id), [jobs]);
+
+  const handleTechSave = () => {
+    if (onTechChange) {
+      onTechChange(col.id, techValue);
+    }
+    setEditingTech(false);
+  };
 
   return (
     <div
@@ -644,15 +677,42 @@ function BoardColumn({
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
-      <div className="flex shrink-0 items-center justify-between px-3 pb-2 pt-2.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
-          <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
+      <div className="flex shrink-0 flex-col gap-2 px-3 pb-2 pt-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
+            <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-xs font-semibold text-[#9aa29c]">Total</span>
+            <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-xs font-semibold text-[#9aa29c]">Total</span>
-          <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
-        </div>
+        {isBarge && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-[#8a928c] shrink-0">Tech:</label>
+            {editingTech ? (
+              <input
+                autoFocus
+                className="flex-1 rounded border border-[#e8dcc8] px-2 py-1 text-sm outline-none focus:border-[#6B1919]"
+                value={techValue}
+                onChange={(e) => setTechValue(e.target.value)}
+                onBlur={handleTechSave}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleTechSave();
+                  if (e.key === 'Escape') setEditingTech(false);
+                }}
+              />
+            ) : (
+              <button
+                onClick={() => setEditingTech(true)}
+                className="flex-1 text-left rounded px-2 py-1 text-sm font-medium text-[#3a423d] hover:bg-[#f5f1e8] transition"
+              >
+                {techValue || <span className="text-[#9aa29c]">Add tech name</span>}
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div
         ref={setNodeRef}
@@ -724,28 +784,25 @@ function JobCardView({
           <Wrench size="0.8em" /> MAINT
         </span>
       )}
-      <div className={`px-3 py-2 pl-3.5 ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
+      <div className={`px-3 py-2 pl-3.5 flex flex-col h-full ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-base font-bold leading-tight">{job.customerName}</h3>
           {(job.subarea || job.area) && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.subarea || job.area}</span>}
         </div>
         {job.scope && <p className="mt-1 text-sm font-medium leading-snug opacity-90">{job.scope}</p>}
         {job.note && <p className="mt-0.5 text-xs leading-snug opacity-85">{job.note}</p>}
-        {(job.price !== undefined || job.daysOfWork !== undefined) && (
-          <div className="mt-1 flex items-center gap-2 text-xs opacity-85">
-            {job.price !== undefined && <span>${job.price.toLocaleString()}</span>}
-            {job.daysOfWork !== undefined && <span>{job.daysOfWork}d</span>}
-          </div>
-        )}
-        {(job.priority === 'high' || job.assignedTo || job.scheduledDate) && (
+        {(job.priority === 'high' || job.scheduledDate) && (
           <div className="mt-1.5 flex items-center gap-2 text-xs opacity-90">
             {job.priority === 'high' && (
               <span className="h-2 w-2 rounded-full bg-white" title="High priority" aria-label="High priority" />
             )}
-            {job.assignedTo && <span>{job.assignedTo}</span>}
             {job.scheduledDate && <span className="font-mono">{job.scheduledDate}</span>}
           </div>
         )}
+        <div className="mt-auto flex items-end justify-end gap-2">
+          {job.price !== undefined && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">${job.price.toLocaleString()}</span>}
+          {job.daysOfWork !== undefined && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.daysOfWork}d</span>}
+        </div>
       </div>
     </div>
   );
@@ -1001,8 +1058,8 @@ function JobForm({
               </select>
             </div>
             <div>
-              <label className={labelClass}>Assigned to</label>
-              <input className={`${fieldClass} mt-1`} value={draft.assignedTo ?? ''} onChange={(e) => set('assignedTo', e.target.value)} placeholder="Randy, Jordan" />
+              <label className={labelClass}>Tech</label>
+              <input className={`${fieldClass} mt-1`} value={draft.tech ?? ''} onChange={(e) => set('tech', e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
