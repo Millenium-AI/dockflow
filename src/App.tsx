@@ -188,18 +188,23 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     }
   };
 
-  const handleSave = (job: Job) => {
+  const handleSave = async (job: Job) => {
     const isNew = !jobs.some((j) => j.id === job.id);
     const statusChanged = editing && editing.status !== job.status;
     const finalJob =
       isNew || statusChanged
         ? { ...job, sortOrder: jobs.filter((j) => j.status === job.status && j.id !== job.id).length }
         : job;
+
     setEditing(null);
     setShowForm(false);
+
     commit(
       (cur) => (cur.some((j) => j.id === finalJob.id) ? cur.map((j) => (j.id === finalJob.id ? finalJob : j)) : [...cur, finalJob]),
-      () => saveJob(finalJob)
+      async () => {
+        // Files are already in metadata, just save the job
+        await saveJob(finalJob);
+      }
     );
   };
 
@@ -674,6 +679,123 @@ function JobCard({
   );
 }
 
+function AttachmentsSection({
+  files,
+  jobId,
+  onFilesChange,
+}: {
+  files: any[];
+  jobId: string;
+  onFilesChange: (files: any[]) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const { supabase } = await import('./lib/supabase');
+      const timestamp = new Date().toISOString();
+      const path = `${jobId}/${timestamp}-${file.name}`;
+
+      const { error } = await supabase.storage.from('job-files').upload(path, file);
+      if (error) throw error;
+
+      const newFile = {
+        name: file.name,
+        size: file.size,
+        uploadedAt: timestamp,
+        path,
+      };
+      onFilesChange([...files, newFile]);
+    } catch (err) {
+      console.error('File upload failed:', err);
+      alert('Failed to upload file. Check console for details.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDownload = async (file: any) => {
+    try {
+      const { supabase } = await import('./lib/supabase');
+      const { data } = await supabase.storage.from('job-files').createSignedUrl(file.path, 3600);
+      if (data?.signedUrl) {
+        const a = document.createElement('a');
+        a.href = data.signedUrl;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Failed to download file');
+    }
+  };
+
+  const handleDelete = async (file: any) => {
+    try {
+      const { supabase } = await import('./lib/supabase');
+      await supabase.storage.from('job-files').remove([file.path]);
+      onFilesChange(files.filter((f) => f.path !== file.path));
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Failed to delete file');
+    }
+  };
+
+  return (
+    <div className="space-y-2 border-t border-[#e8dcc8] pt-3">
+      <label className={labelClass}>Attachments</label>
+      <div className="flex flex-col gap-2">
+        <input
+          type="file"
+          disabled={uploading}
+          onChange={handleFileSelect}
+          className="rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-2 text-sm cursor-pointer disabled:opacity-50 file:mr-3 file:rounded file:border-0 file:bg-[#6B1919] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white hover:file:bg-[#521212]"
+          accept="*/*"
+        />
+        {uploading && <p className="text-xs text-[#9aa29c]">Uploading...</p>}
+        {files.length > 0 && (
+          <div className="space-y-1 rounded-lg bg-[#faf8f3] p-2">
+            {files.map((file) => (
+              <div key={file.path} className="flex items-center justify-between gap-2 rounded px-2 py-1.5 bg-white border border-[#e8dcc8] text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-[#3a423d] truncate">{file.name}</p>
+                  <p className="text-xs text-[#9aa29c]">{(file.size / 1024).toFixed(1)} KB</p>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(file)}
+                    className="rounded p-1 text-[#5a8aa8] hover:bg-[#e8f4f9]"
+                    aria-label="Download file"
+                    title="Download"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(file)}
+                    className="rounded p-1 text-[#9aa29c] hover:bg-[#fbf0ee] hover:text-[#b04a36]"
+                    aria-label="Remove file"
+                  >
+                    <X size="1em" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function JobForm({
   job,
   areaColors,
@@ -789,50 +911,8 @@ function JobForm({
           </div>
 
           {/* Attachments Section */}
-          <div className="space-y-2 border-t border-[#e8dcc8] pt-3">
-            <label className={labelClass}>Attachments</label>
-            <div className="flex flex-col gap-2">
-              <input
-                type="file"
-                multiple
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    const file = e.target.files[0];
-                    const newFile = {
-                      name: file.name,
-                      size: file.size,
-                      uploadedAt: new Date().toISOString(),
-                      path: `${draft.id}/${file.name}`,
-                    };
-                    set('files', [...(draft.files ?? []), newFile]);
-                    e.target.value = '';
-                  }
-                }}
-                className="rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-2 text-sm cursor-pointer file:mr-3 file:rounded file:border-0 file:bg-[#6B1919] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white hover:file:bg-[#521212]"
-                accept="*/*"
-              />
-              {draft.files && draft.files.length > 0 && (
-                <div className="space-y-1 rounded-lg bg-[#faf8f3] p-2">
-                  {draft.files.map((file) => (
-                    <div key={file.path} className="flex items-center justify-between gap-2 rounded px-2 py-1.5 bg-white border border-[#e8dcc8] text-sm">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-[#3a423d] truncate">{file.name}</p>
-                        <p className="text-xs text-[#9aa29c]">{(file.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => set('files', draft.files!.filter((f) => f.path !== file.path))}
-                        className="shrink-0 rounded p-1 text-[#9aa29c] hover:bg-[#fbf0ee] hover:text-[#b04a36]"
-                        aria-label="Remove file"
-                      >
-                        <X size="1em" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <AttachmentsSection files={draft.files ?? []} jobId={draft.id} onFilesChange={(files) => set('files', files)} />
+
         </div>
 
         <div className="flex items-center justify-between border-t border-[#e8dcc8] px-5 py-3">
