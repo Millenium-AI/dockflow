@@ -123,7 +123,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Job | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<'barges' | 'other'>('barges');
@@ -134,7 +133,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   // a plain click still open the edit form instead of every click starting a drag.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const busy = showForm || showSettings || showAreaSettings || confirmDelete !== null || activeId !== null;
+  const busy = showForm || showAreaSettings || confirmDelete !== null || activeId !== null;
   const busyRef = useRef(busy);
   busyRef.current = busy;
 
@@ -297,23 +296,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const toggleVisible = (id: JobStatus) =>
     commitLayout(layout.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)));
 
-  const changeSpan = (id: JobStatus, delta: number) =>
-    commitLayout(
-      layout.map((c) => (c.id === id ? { ...c, span: Math.max(1, Math.min(12, c.span + delta)) } : c))
-    );
-
-  const moveColumn = (id: JobStatus, direction: -1 | 1) => {
-    const sorted = [...layout].sort((a, b) => a.position - b.position);
-    const idx = sorted.findIndex((c) => c.id === id);
-    const swapIdx = idx + direction;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const a = sorted[idx];
-    const b = sorted[swapIdx];
-    commitLayout(
-      layout.map((c) => (c.id === a.id ? { ...c, position: b.position } : c.id === b.id ? { ...c, position: a.position } : c))
-    );
-  };
-
   const handleGridLayoutChange = (newLayout: Layout[]) => {
     const updated = layout.map((col) => {
       const gridItem = newLayout.find((item) => item.i === col.id);
@@ -441,13 +423,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             />
           </div>
           <button
-            onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f5f1e8]"
-            aria-label="Board settings"
-          >
-            <Settings size="1em" /> Columns
-          </button>
-          <button
             onClick={() => setShowAreaSettings(true)}
             className="flex items-center gap-1.5 rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f5f1e8]"
             aria-label="Area colors"
@@ -518,6 +493,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
                     jobs={byStatus[col.id] ?? []}
                     onEdit={openEdit}
                     areaColors={areaColors}
+                    onToggleVisible={toggleVisible}
                   />
                 </div>
               ))}
@@ -532,16 +508,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           </DndContext>
         )}
       </main>
-
-      {showSettings && (
-        <SettingsPanel
-          layout={layout}
-          onClose={() => setShowSettings(false)}
-          onToggleVisible={toggleVisible}
-          onChangeSpan={changeSpan}
-          onMove={moveColumn}
-        />
-      )}
 
       {showAreaSettings && (
         <AreaColorSettingsPanel
@@ -597,110 +563,18 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   );
 }
 
-function SettingsPanel({
-  layout,
-  onClose,
-  onToggleVisible,
-  onChangeSpan,
-  onMove,
-}: {
-  layout: ColumnLayout[];
-  onClose: () => void;
-  onToggleVisible: (id: JobStatus) => void;
-  onChangeSpan: (id: JobStatus, delta: number) => void;
-  onMove: (id: JobStatus, direction: -1 | 1) => void;
-}) {
-  const sorted = [...layout].sort((a, b) => a.position - b.position);
-  return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
-      <div
-        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e8dcc8] bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3">
-          <h2 className="text-lg font-bold text-[#6B1919]">Columns</h2>
-          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f5f1e8]" aria-label="Close">
-            <X size="1em" />
-          </button>
-        </div>
-        <div className="max-h-[60vh] space-y-1.5 overflow-y-auto px-4 py-4">
-          {sorted.map((col, i) => {
-            const meta = columnDefaults.find((d) => d.id === col.id)!;
-            return (
-              <div
-                key={col.id}
-                className={`flex items-center gap-2 rounded-lg border border-[#e8dcc8] px-3 py-2 ${
-                  col.visible ? 'bg-white' : 'bg-[#faf8f3] opacity-60'
-                }`}
-              >
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => onMove(col.id, -1)}
-                    disabled={i === 0}
-                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f5f1e8] disabled:opacity-25"
-                    aria-label={`Move ${meta.label} up`}
-                  >
-                    <ChevronUp size="1em" />
-                  </button>
-                  <button
-                    onClick={() => onMove(col.id, 1)}
-                    disabled={i === sorted.length - 1}
-                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f5f1e8] disabled:opacity-25"
-                    aria-label={`Move ${meta.label} down`}
-                  >
-                    <ChevronDown size="1em" />
-                  </button>
-                </div>
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.accent }} />
-                <span className="flex-1 truncate text-sm font-semibold text-[#3a423d]">{meta.label}</span>
-                <div className="flex items-center gap-1 text-sm text-[#6a726c]">
-                  <button
-                    onClick={() => onChangeSpan(col.id, -1)}
-                    disabled={col.span <= 1}
-                    className="rounded p-1 hover:bg-[#f5f1e8] disabled:opacity-25"
-                    aria-label={`Narrower ${meta.label}`}
-                  >
-                    <Minus size="0.9em" />
-                  </button>
-                  <span className="w-10 text-center font-mono text-xs">{col.span}/12</span>
-                  <button
-                    onClick={() => onChangeSpan(col.id, 1)}
-                    disabled={col.span >= 12}
-                    className="rounded p-1 hover:bg-[#f5f1e8] disabled:opacity-25"
-                    aria-label={`Wider ${meta.label}`}
-                  >
-                    <Plus size="0.9em" />
-                  </button>
-                </div>
-                <button
-                  onClick={() => onToggleVisible(col.id)}
-                  className="rounded p-1.5 text-[#6a726c] hover:bg-[#f5f1e8]"
-                  aria-label={col.visible ? `Hide ${meta.label}` : `Show ${meta.label}`}
-                >
-                  {col.visible ? <Eye size="1em" /> : <EyeOff size="1em" />}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="border-t border-[#e8dcc8] px-5 py-3 text-xs text-[#8a928c]">
-          Width is out of 12 per row — columns wrap to a new row once a row fills up. Hiding a column keeps its jobs; they reappear when you show it again.
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function BoardColumn({
   col,
   jobs,
   onEdit,
   areaColors,
+  onToggleVisible,
 }: {
   col: RenderColumn;
   jobs: Job[];
   onEdit: (job: Job) => void;
   areaColors: AreaColorSettings;
+  onToggleVisible: (id: JobStatus) => void;
 }) {
   // Registers this column as a drop target in its own right, so dropping on
   // an empty (or mostly-empty) column still works even with no cards to land on.
@@ -713,10 +587,20 @@ function BoardColumn({
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
-      <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-2.5">
-        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
-        <h2 className="text-base font-bold tracking-tight text-[#3a423d]">{col.label}</h2>
-        <span className="text-sm font-semibold text-[#9aa29c]">{jobs.length}</span>
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2 pt-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
+          <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
+          <span className="text-sm font-semibold text-[#9aa29c] shrink-0">{jobs.length}</span>
+        </div>
+        <button
+          onClick={() => onToggleVisible(col.id)}
+          className="shrink-0 rounded p-1.5 text-[#6a726c] hover:bg-[#f5f1e8]"
+          aria-label={`Toggle visibility`}
+          title={`Hide column`}
+        >
+          <Eye size="1em" />
+        </button>
       </div>
       <div
         ref={setNodeRef}
