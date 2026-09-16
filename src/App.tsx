@@ -759,51 +759,52 @@ function AreaColorSettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
       <div
-        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e0e4de] bg-white shadow-xl"
+        className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e0e4de] bg-white shadow-xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#ecefed] px-5 py-3">
+        <div className="flex items-center justify-between border-b border-[#ecefed] px-5 py-3 shrink-0">
           <h2 className="text-lg font-bold">Area Colors</h2>
           <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f0f3ef]" aria-label="Close">
             <X size="1em" />
           </button>
         </div>
 
-        <div className="max-h-[60vh] space-y-3 overflow-y-auto px-5 py-4">
+        <div className="flex flex-col gap-3 px-5 py-4 shrink-0 border-b border-[#ecefed]">
           <div>
             <label className={labelClass}>Add new area</label>
-            <div className="mt-1 flex gap-2">
+            <div className="mt-2 flex gap-2">
               <input
                 className={`${fieldClass} flex-1`}
                 value={newArea}
                 onChange={(e) => setNewArea(e.target.value.toUpperCase())}
                 onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-                placeholder="e.g., TI, NE, MB, Downtown"
+                placeholder="e.g., TI, Downtown, North Side"
                 maxLength={24}
               />
               <button
                 onClick={handleAdd}
                 disabled={!newArea || allAreas.includes(newArea)}
-                className="rounded-lg bg-[#2f5260] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#24414c] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="rounded-lg bg-[#2f5260] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#24414c] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
               >
-                <Plus size="1em" />
+                <Plus size="1.2em" />
               </button>
             </div>
           </div>
+        </div>
 
-          {allAreas.length > 0 && (
-            <>
-              <div className="border-t border-[#ecefed] pt-3">
-                <p className="text-xs font-semibold text-[#8a928c] mb-3">Area colors:</p>
-              </div>
+        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
+          {allAreas.length === 0 ? (
+            <p className="text-sm text-[#8a928c] text-center py-8">Add an area to get started</p>
+          ) : (
+            <div className="space-y-3">
               {allAreas.map((area) => (
-                <div key={area} className="rounded-lg border border-[#e4e8e3] p-3 bg-white space-y-2.5">
-                  <div className="flex items-center gap-3">
+                <div key={area} className="rounded-lg border border-[#e4e8e3] p-3 bg-[#fafbfa] space-y-2.5">
+                  <div className="flex items-center gap-2">
                     {editingArea === area ? (
                       <input
-                        className={`${fieldClass} flex-1 max-w-[140px]`}
+                        className={`${fieldClass} flex-1`}
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value.toUpperCase())}
                         onKeyDown={(e) => {
@@ -819,37 +820,37 @@ function AreaColorSettingsPanel({
                           setEditingArea(area);
                           setEditValue(area);
                         }}
-                        className="font-mono font-semibold text-[#3a423d] hover:text-[#2f5260] hover:underline text-left"
+                        className="font-mono font-bold text-[#3a423d] hover:text-[#2f5260] hover:underline text-left text-sm"
                         title="Click to edit"
                       >
                         {area}
                       </button>
                     )}
-                    <div className="flex-1 flex items-center gap-1.5">
-                      {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
-                        <button
-                          key={key}
-                          onClick={() => onSetColor(area, key as AreaColorKey)}
-                          className={`h-7 w-7 rounded-full border-2 transition ${
-                            areaColors[area] === key ? 'scale-110 border-[#2a312d]' : 'border-transparent hover:scale-105'
-                          }`}
-                          style={{ background: hex }}
-                          title={label}
-                          aria-label={label}
-                        />
-                      ))}
-                    </div>
                     <button
                       onClick={() => handleDelete(area)}
-                      className="rounded p-1.5 text-[#8a928c] hover:bg-[#fbf0ee] hover:text-[#b04a36]"
+                      className="rounded p-1 text-[#8a928c] hover:bg-[#fbf0ee] hover:text-[#b04a36] shrink-0"
                       aria-label={`Delete ${area}`}
-                      title="Delete area"
+                      title="Delete"
                     >
                       <Trash2 size="1em" />
                     </button>
                   </div>
+                  <div className="flex items-center gap-1.5 px-1 flex-wrap">
+                    {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
+                      <button
+                        key={key}
+                        onClick={() => onSetColor(area, key as AreaColorKey)}
+                        className={`h-8 w-8 rounded-full border-2 transition shrink-0 ${
+                          areaColors[area] === key ? 'scale-110 border-[#2a312d]' : 'border-transparent hover:scale-105'
+                        }`}
+                        style={{ background: hex }}
+                        title={label}
+                        aria-label={label}
+                      />
+                    ))}
+                  </div>
                   <div className="flex items-center gap-3 px-1">
-                    <label className="text-xs font-semibold text-[#8a928c] w-16">Opacity:</label>
+                    <label className="text-xs font-semibold text-[#8a928c] shrink-0">Opacity:</label>
                     <input
                       type="range"
                       min="0"
@@ -858,17 +859,17 @@ function AreaColorSettingsPanel({
                       onChange={(e) => setAreaOpacity(prev => ({ ...prev, [area]: parseInt(e.target.value) / 100 }))}
                       className="flex-1 h-2 bg-[#dde2dc] rounded-lg appearance-none cursor-pointer accent-[#2f5260]"
                     />
-                    <span className="text-xs font-semibold text-[#8a928c] w-10 text-right">
+                    <span className="text-xs font-semibold text-[#8a928c] shrink-0 w-8 text-right">
                       {Math.round((areaOpacity[area] ?? 1.0) * 100)}%
                     </span>
                   </div>
                 </div>
               ))}
-            </>
+            </div>
           )}
         </div>
 
-        <div className="border-t border-[#ecefed] px-5 py-3 flex justify-end">
+        <div className="border-t border-[#ecefed] px-5 py-3 flex justify-end shrink-0 gap-2">
           <button
             onClick={onClose}
             className="rounded-lg bg-[#2f5260] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#24414c]"
