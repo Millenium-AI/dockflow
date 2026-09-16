@@ -453,17 +453,19 @@ function BoardColumn({
       className={`flex min-h-0 flex-col rounded-xl border bg-[#fafbfa] transition ${
         isDropHere ? 'border-[#5b8a9e] bg-[#edf2f4]' : 'border-[#e2e6e1]'
       }`}
-      onDragOver={(e) => {
+      onDragOver={(e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         if (!isDropHere || dropTarget?.index !== displayJobs.length) {
           setDropTarget({ status: col.id, index: displayJobs.length });
         }
       }}
-      onDragLeave={(e) => {
+      onDragLeave={(e: React.DragEvent<HTMLDivElement>) => {
         if (e.currentTarget === e.target) setDropTarget(null);
       }}
-      onDrop={(e) => {
+      onDrop={(e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
+        e.stopPropagation();
         finishDrop(displayJobs.length);
       }}
     >
@@ -491,9 +493,9 @@ function BoardColumn({
                 setDraggingId(null);
                 setDropTarget(null);
               }}
-              onDragOverCard={(e) => {
+              onDragOverCard={(e: React.DragEvent<HTMLDivElement>) => {
                 e.preventDefault();
-                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
                 const rect = e.currentTarget.getBoundingClientRect();
                 const before = col.compact
                   ? e.clientX - rect.left < rect.width / 2
@@ -501,7 +503,7 @@ function BoardColumn({
                 const idx = before ? i : i + 1;
                 if (!isDropHere || dropTarget?.index !== idx) setDropTarget({ status: col.id, index: idx });
               }}
-              onDropCard={(e) => {
+              onDropCard={(e: React.DragEvent<HTMLDivElement>) => {
                 e.preventDefault();
                 e.stopPropagation();
                 finishDrop(dropTarget?.status === col.id ? dropTarget.index : i);
@@ -539,20 +541,21 @@ function JobCard({
   areaColor: AreaColorKey;
   onDragStartCard: () => void;
   onDragEndCard: () => void;
-  onDragOverCard: (e: DragEvent<HTMLDivElement>) => void;
-  onDropCard: (e: DragEvent<HTMLDivElement>) => void;
+  onDragOverCard: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDropCard: (e: React.DragEvent<HTMLDivElement>) => void;
 }) {
   const areaHex = areaColorTokens[areaColor].hex;
   const isNone = areaColor === 'none';
 
-  const handleDragStart = (e: DragEvent<HTMLDivElement>) => {
-    (e.target as HTMLDivElement).style.opacity = '0.5';
-    e.dataTransfer!.effectAllowed = 'move';
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', job.id);
+    const dragImage = new Image();
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
     onDragStartCard();
   };
 
-  const handleDragEnd = (e: DragEvent<HTMLDivElement>) => {
-    (e.target as HTMLDivElement).style.opacity = '1';
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
     onDragEndCard();
   };
 
