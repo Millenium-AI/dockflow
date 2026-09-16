@@ -3,7 +3,7 @@ import {
   ChevronDown, ChevronUp, Eye, EyeOff, Minus, Plus, Search, Settings, Trash2, WifiOff, X,
 } from 'lucide-react';
 import {
-  areaColorTokens, colorTokens, columnDefaults, defaultLayout, type AreaColorKey, type AreaColorSettings, type ColorKey, type ColumnDefaults,
+  areaColorTokens, columnDefaults, defaultLayout, type AreaColorKey, type AreaColorSettings, type ColumnDefaults,
   type ColumnLayout, type Job, type JobStatus,
 } from './data';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
@@ -534,8 +534,8 @@ function JobCard({
   onDragOverCard: (e: DragEvent<HTMLDivElement>) => void;
   onDropCard: (e: DragEvent<HTMLDivElement>) => void;
 }) {
-  const color = colorTokens[job.color ?? 'none'].hex;
   const areaHex = areaColorTokens[areaColor].hex;
+  const isNone = areaColor === 'none';
   return (
     <div
       draggable
@@ -544,23 +544,22 @@ function JobCard({
       onDragOver={onDragOverCard}
       onDrop={onDropCard}
       onClick={() => onEdit(job)}
-      className={`relative cursor-pointer rounded-lg border-2 bg-white transition hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] ${
+      className={`relative cursor-pointer rounded-lg border transition hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] ${
         compact ? 'w-44' : ''
-      }`}
-      style={{ borderColor: areaColor === 'none' ? '#e4e8e3' : areaHex }}
+      } ${isNone ? 'border-[#e4e8e3] bg-white' : 'border-transparent'}`}
+      style={!isNone ? { backgroundColor: areaHex, borderColor: areaHex } : undefined}
     >
-      <div className="absolute bottom-0 left-0 top-0 w-[3px] rounded-l-lg" style={{ background: color }} />
-      <div className="px-3 py-2 pl-3.5">
+      <div className={`px-3 py-2 pl-3.5 ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-base font-bold leading-tight text-[#2a312d]">{job.customerName}</h3>
-          {job.area && <span className="shrink-0 font-mono text-sm font-semibold text-[#7a827c]">{job.area}</span>}
+          <h3 className="text-base font-bold leading-tight">{job.customerName}</h3>
+          {job.area && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.area}</span>}
         </div>
-        {job.scope && <p className="mt-1 text-sm font-medium leading-snug text-[#525a54]">{job.scope}</p>}
-        {job.note && <p className="mt-0.5 text-xs leading-snug text-[#8a928c]">{job.note}</p>}
+        {job.scope && <p className="mt-1 text-sm font-medium leading-snug opacity-90">{job.scope}</p>}
+        {job.note && <p className="mt-0.5 text-xs leading-snug opacity-85">{job.note}</p>}
         {(job.priority === 'high' || job.assignedTo || job.scheduledDate) && (
-          <div className="mt-1.5 flex items-center gap-2 text-xs text-[#9aa29c]">
+          <div className="mt-1.5 flex items-center gap-2 text-xs opacity-90">
             {job.priority === 'high' && (
-              <span className="h-2 w-2 rounded-full bg-[#D37D63]" title="High priority" aria-label="High priority" />
+              <span className="h-2 w-2 rounded-full bg-white" title="High priority" aria-label="High priority" />
             )}
             {job.assignedTo && <span>{job.assignedTo}</span>}
             {job.scheduledDate && <span className="font-mono">{job.scheduledDate}</span>}
@@ -642,32 +641,13 @@ function JobForm({
               <input className={`${fieldClass} mt-1`} value={draft.assignedTo ?? ''} onChange={(e) => set('assignedTo', e.target.value)} placeholder="Randy, Jordan" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Priority</label>
-              <select className={`${fieldClass} mt-1`} value={draft.priority ?? 'normal'} onChange={(e) => set('priority', e.target.value as Job['priority'])}>
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Color label</label>
-              <div className="mt-1 flex items-center gap-1.5">
-                {Object.entries(colorTokens).map(([key, { hex, label }]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => set('color', key as ColorKey)}
-                    className={`h-6 w-6 rounded-full border-2 transition ${
-                      draft.color === key ? 'scale-110 border-[#2a312d]' : 'border-transparent hover:scale-105'
-                    }`}
-                    style={{ background: hex }}
-                    aria-label={label}
-                  />
-                ))}
-              </div>
-            </div>
+          <div>
+            <label className={labelClass}>Priority</label>
+            <select className={`${fieldClass} mt-1`} value={draft.priority ?? 'normal'} onChange={(e) => set('priority', e.target.value as Job['priority'])}>
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
           </div>
         </div>
 

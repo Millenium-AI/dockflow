@@ -3,7 +3,6 @@ export type JobStatus =
   | 'ready' | 'waiting-permits' | 'hold' | 'complete';
 
 export type JobPriority = 'low' | 'normal' | 'high';
-export type ColorKey = 'none' | 'coral' | 'ocean' | 'sage' | 'sand' | 'slate';
 export type AreaColorKey = 'none' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink';
 
 export interface Job {
@@ -15,20 +14,10 @@ export interface Job {
   status: JobStatus;
   scheduledDate?: string;
   assignedTo?: string;
-  color?: ColorKey;
   priority?: JobPriority;
   /** Position within its column. Only meaningful relative to other jobs in the same column. */
   sortOrder?: number;
 }
-
-export const colorTokens: Record<ColorKey, { label: string; hex: string }> = {
-  none:  { label: 'None',  hex: '#c8ccc8' },
-  coral: { label: 'Coral', hex: '#D88972' },
-  ocean: { label: 'Ocean', hex: '#6D8FA8' },
-  sage:  { label: 'Sage',  hex: '#739B7B' },
-  sand:  { label: 'Sand',  hex: '#C8A15A' },
-  slate: { label: 'Slate', hex: '#8B9291' },
-};
 
 export const areaColorTokens: Record<AreaColorKey, { label: string; hex: string }> = {
   none:   { label: 'None',   hex: '#e5e7eb' },
