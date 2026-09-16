@@ -4,6 +4,7 @@ export type JobStatus =
 
 export type JobPriority = 'low' | 'normal' | 'high';
 export type ColorKey = 'none' | 'coral' | 'ocean' | 'sage' | 'sand' | 'slate';
+export type AreaColorKey = 'none' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink';
 
 export interface Job {
   id: string;
@@ -27,6 +28,17 @@ export const colorTokens: Record<ColorKey, { label: string; hex: string }> = {
   sage:  { label: 'Sage',  hex: '#739B7B' },
   sand:  { label: 'Sand',  hex: '#C8A15A' },
   slate: { label: 'Slate', hex: '#8B9291' },
+};
+
+export const areaColorTokens: Record<AreaColorKey, { label: string; hex: string }> = {
+  none:   { label: 'None',   hex: '#e5e7eb' },
+  red:    { label: 'Red',    hex: '#ef4444' },
+  orange: { label: 'Orange', hex: '#f97316' },
+  yellow: { label: 'Yellow', hex: '#eab308' },
+  green:  { label: 'Green',  hex: '#22c55e' },
+  blue:   { label: 'Blue',   hex: '#3b82f6' },
+  purple: { label: 'Purple', hex: '#a855f7' },
+  pink:   { label: 'Pink',   hex: '#ec4899' },
 };
 
 /**
@@ -72,3 +84,13 @@ export const defaultLayout: ColumnLayout[] = [
   { id: 'hold',            span: 3,  position: 5, visible: true },
   { id: 'complete',        span: 12, position: 6, visible: true },
 ];
+
+export interface AreaColorSettings {
+  [areaCode: string]: AreaColorKey;
+}
+
+export const defaultAreaColors: AreaColorSettings = {
+  'TI': 'red',
+  'NE': 'blue',
+  'MB': 'green',
+};

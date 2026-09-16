@@ -3,11 +3,11 @@ import {
   ChevronDown, ChevronUp, Eye, EyeOff, Minus, Plus, Search, Settings, Trash2, WifiOff, X,
 } from 'lucide-react';
 import {
-  colorTokens, columnDefaults, defaultLayout, type ColorKey, type ColumnDefaults,
+  areaColorTokens, colorTokens, columnDefaults, defaultLayout, type AreaColorKey, type AreaColorSettings, type ColorKey, type ColumnDefaults,
   type ColumnLayout, type Job, type JobStatus,
 } from './data';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
-import { fetchLayout, saveLayout } from './lib/settings';
+import { fetchAreaColors, fetchLayout, saveAreaColors, saveLayout } from './lib/settings';
 
 const REFRESH_MS = 20_000;
 const fieldClass =
@@ -19,6 +19,7 @@ type RenderColumn = ColumnDefaults & ColumnLayout;
 export default function App() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [layout, setLayout] = useState<ColumnLayout[]>(defaultLayout);
+  const [areaColors, setAreaColors] = useState<AreaColorSettings>({});
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -26,21 +27,23 @@ export default function App() {
   const [editing, setEditing] = useState<Job | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // Drag state for free-position job reordering.
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ status: JobStatus; index: number } | null>(null);
 
-  const busy = showForm || showSettings || confirmDelete !== null || draggingId !== null;
+  const busy = showForm || showSettings || showAreaSettings || confirmDelete !== null || draggingId !== null;
   const busyRef = useRef(busy);
   busyRef.current = busy;
 
   const refresh = useCallback(async () => {
     try {
-      const [jobRows, layoutRows] = await Promise.all([fetchJobs(), fetchLayout()]);
+      const [jobRows, layoutRows, areaColorsData] = await Promise.all([fetchJobs(), fetchLayout(), fetchAreaColors()]);
       setJobs(jobRows);
       setLayout(layoutRows);
+      setAreaColors(areaColorsData);
       setOffline(false);
     } catch {
       setOffline(true);
@@ -145,6 +148,12 @@ export default function App() {
     );
   };
 
+  const setAreaColor = (areaCode: string, color: AreaColorKey) => {
+    const updated = { ...areaColors, [areaCode]: color };
+    setAreaColors(updated);
+    saveAreaColors(updated).catch(() => setOffline(true));
+  };
+
   const byStatus = useMemo(() => {
     const q = search.trim().toLowerCase();
     const groups: Record<string, Job[]> = {};
@@ -201,6 +210,13 @@ export default function App() {
             <Settings size="1em" /> Columns
           </button>
           <button
+            onClick={() => setShowAreaSettings(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-[#dde2dc] bg-white px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f0f3ef]"
+            aria-label="Area colors"
+          >
+            <Settings size="1em" /> Areas
+          </button>
+          <button
             onClick={() => {
               setEditing(null);
               setShowForm(true);
@@ -230,6 +246,7 @@ export default function App() {
                 setDropTarget={setDropTarget}
                 onReorder={handleReorder}
                 onEdit={openEdit}
+                areaColors={areaColors}
               />
             ))}
           </div>
@@ -243,6 +260,14 @@ export default function App() {
           onToggleVisible={toggleVisible}
           onChangeSpan={changeSpan}
           onMove={moveColumn}
+        />
+      )}
+
+      {showAreaSettings && (
+        <AreaColorSettingsPanel
+          areaColors={areaColors}
+          onClose={() => setShowAreaSettings(false)}
+          onSetColor={setAreaColor}
         />
       )}
 
@@ -393,6 +418,7 @@ function BoardColumn({
   setDropTarget,
   onReorder,
   onEdit,
+  areaColors,
 }: {
   col: RenderColumn;
   jobs: Job[];
@@ -402,6 +428,7 @@ function BoardColumn({
   setDropTarget: (t: { status: JobStatus; index: number } | null) => void;
   onReorder: (jobId: string, destStatus: JobStatus, index: number) => void;
   onEdit: (job: Job) => void;
+  areaColors: AreaColorSettings;
 }) {
   const displayJobs = draggingId ? jobs.filter((j) => j.id !== draggingId) : jobs;
   const isDropHere = dropTarget?.status === col.id;
@@ -450,6 +477,7 @@ function BoardColumn({
               job={job}
               onEdit={onEdit}
               compact={col.compact}
+              areaColor={areaColors[job.area ?? ''] ?? 'none'}
               onDragStartCard={() => setDraggingId(job.id)}
               onDragEndCard={() => {
                 setDraggingId(null);
@@ -491,6 +519,7 @@ function JobCard({
   job,
   onEdit,
   compact,
+  areaColor,
   onDragStartCard,
   onDragEndCard,
   onDragOverCard,
@@ -499,12 +528,14 @@ function JobCard({
   job: Job;
   onEdit: (job: Job) => void;
   compact?: boolean;
+  areaColor: AreaColorKey;
   onDragStartCard: () => void;
   onDragEndCard: () => void;
   onDragOverCard: (e: DragEvent<HTMLDivElement>) => void;
   onDropCard: (e: DragEvent<HTMLDivElement>) => void;
 }) {
   const color = colorTokens[job.color ?? 'none'].hex;
+  const areaHex = areaColorTokens[areaColor].hex;
   return (
     <div
       draggable
@@ -513,9 +544,10 @@ function JobCard({
       onDragOver={onDragOverCard}
       onDrop={onDropCard}
       onClick={() => onEdit(job)}
-      className={`relative cursor-pointer rounded-lg border border-[#e4e8e3] bg-white transition hover:border-[#cdd4ce] hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] ${
+      className={`relative cursor-pointer rounded-lg border-2 bg-white transition hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] ${
         compact ? 'w-44' : ''
       }`}
+      style={{ borderColor: areaColor === 'none' ? '#e4e8e3' : areaHex }}
     >
       <div className="absolute bottom-0 left-0 top-0 w-[3px] rounded-l-lg" style={{ background: color }} />
       <div className="px-3 py-2 pl-3.5">
@@ -662,6 +694,87 @@ function JobForm({
               {job ? 'Save' : 'Add job'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AreaColorSettingsPanel({
+  areaColors,
+  onClose,
+  onSetColor,
+}: {
+  areaColors: AreaColorSettings;
+  onClose: () => void;
+  onSetColor: (areaCode: string, color: AreaColorKey) => void;
+}) {
+  const [newArea, setNewArea] = useState('');
+  const allAreas = [...new Set([...Object.keys(areaColors), newArea].filter(Boolean))].sort();
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
+      <div
+        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e0e4de] bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#ecefed] px-5 py-3">
+          <h2 className="text-lg font-bold">Area Colors</h2>
+          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f0f3ef]" aria-label="Close">
+            <X size="1em" />
+          </button>
+        </div>
+
+        <div className="max-h-[60vh] space-y-3 overflow-y-auto px-5 py-4">
+          <div>
+            <label className={labelClass}>Add new area</label>
+            <input
+              className={`${fieldClass} mt-1`}
+              value={newArea}
+              onChange={(e) => setNewArea(e.target.value.toUpperCase())}
+              placeholder="e.g., TI, NE, MB"
+              maxLength={3}
+            />
+          </div>
+
+          {allAreas.length > 0 && (
+            <>
+              <div className="border-t border-[#ecefed] pt-3">
+                <p className="text-xs font-semibold text-[#8a928c] mb-3">Assign colors to areas:</p>
+              </div>
+              {allAreas.map((area) => (
+                <div
+                  key={area}
+                  className="flex items-center gap-3 rounded-lg border border-[#e4e8e3] p-3 bg-white"
+                >
+                  <span className="w-12 font-mono font-semibold text-[#3a423d]">{area}</span>
+                  <div className="flex-1 flex items-center gap-2">
+                    {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
+                      <button
+                        key={key}
+                        onClick={() => onSetColor(area, key as AreaColorKey)}
+                        className={`h-8 w-8 rounded-full border-2 transition ${
+                          areaColors[area] === key ? 'scale-110 border-[#2a312d]' : 'border-transparent hover:scale-105'
+                        }`}
+                        style={{ background: hex }}
+                        title={label}
+                        aria-label={label}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="border-t border-[#ecefed] px-5 py-3 flex justify-end">
+          <button
+            onClick={onClose}
+            className="rounded-lg bg-[#2f5260] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#24414c]"
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { defaultLayout, type ColumnLayout } from '../data';
+import { defaultLayout, defaultAreaColors, type ColumnLayout, type AreaColorSettings } from '../data';
 
 const TABLE = 'dockflow_board_settings';
 
@@ -17,5 +17,22 @@ export async function fetchLayout(): Promise<ColumnLayout[]> {
 
 export async function saveLayout(columns: ColumnLayout[]): Promise<void> {
   const { error } = await supabase.from(TABLE).upsert({ id: 1, columns });
+  if (error) throw error;
+}
+
+/** Reads area color settings. Seeds with defaults on first run. */
+export async function fetchAreaColors(): Promise<AreaColorSettings> {
+  const { data, error } = await supabase.from(TABLE).select('area_colors').eq('id', 1).maybeSingle();
+  if (error) throw error;
+  if (!data?.area_colors) {
+    const { error: updateError } = await supabase.from(TABLE).upsert({ id: 1, area_colors: defaultAreaColors });
+    if (updateError) throw updateError;
+    return defaultAreaColors;
+  }
+  return data.area_colors as AreaColorSettings;
+}
+
+export async function saveAreaColors(areaColors: AreaColorSettings): Promise<void> {
+  const { error } = await supabase.from(TABLE).upsert({ id: 1, area_colors: areaColors });
   if (error) throw error;
 }
