@@ -39,16 +39,31 @@ export default function App() {
   busyRef.current = busy;
 
   const refresh = useCallback(async () => {
+    // Jobs are the core data — if this fails, show the offline banner.
     try {
-      const [jobRows, layoutRows, areaColorsData] = await Promise.all([fetchJobs(), fetchLayout(), fetchAreaColors()]);
+      const jobRows = await fetchJobs();
       setJobs(jobRows);
-      setLayout(layoutRows);
-      setAreaColors(areaColorsData);
       setOffline(false);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load jobs:', err);
       setOffline(true);
     } finally {
       setLoading(false);
+    }
+
+    // Layout and area colors are secondary settings — a failure here (e.g. a
+    // missing column before a migration is run) shouldn't take the whole
+    // board offline or discard jobs that loaded fine.
+    try {
+      setLayout(await fetchLayout());
+    } catch (err) {
+      console.error('Failed to load column layout:', err);
+    }
+
+    try {
+      setAreaColors(await fetchAreaColors());
+    } catch (err) {
+      console.error('Failed to load area colors:', err);
     }
   }, []);
 
@@ -623,7 +638,7 @@ function JobForm({
   onDelete?: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<Job>(
-    job ?? { id: crypto.randomUUID(), customerName: '', status: 'ready', priority: 'normal', color: 'none' }
+    job ?? { id: crypto.randomUUID(), customerName: '', status: 'ready', priority: 'normal' }
   );
   const set = <K extends keyof Job>(key: K, value: Job[K]) => setDraft((cur) => ({ ...cur, [key]: value }));
 
