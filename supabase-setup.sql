@@ -80,9 +80,10 @@ values
 -- when column customization (hide/show, resize, reorder) shipped.
 -- ---------------------------------------------------------------------------
 create table if not exists public.dockflow_board_settings (
-  id         int primary key default 1 check (id = 1),
-  columns    jsonb not null,
-  updated_at timestamptz not null default now()
+  id           int primary key default 1 check (id = 1),
+  columns      jsonb not null,
+  area_colors  jsonb default '{"TI":"red","NE":"blue","MB":"green"}'::jsonb,
+  updated_at   timestamptz not null default now()
 );
 
 create or replace function public.dockflow_settings_touch() returns trigger
@@ -101,3 +102,4 @@ create policy dockflow_board_settings_open on public.dockflow_board_settings
   for all to anon, authenticated using (true) with check (true);
 
 alter table public.dockflow_jobs add column if not exists sort_order int;
+alter table public.dockflow_board_settings add column if not exists area_colors jsonb default '{"TI":"red","NE":"blue","MB":"green"}'::jsonb;
