@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  ONE KNOB FOR THE WHOLE BOARD.
+  Every size in the app is in rem, so this single line scales all text,
+  padding and gaps to the screen it's running on.
+    1080p monitor  -> ~20px base
+    laptop screen  -> ~15px base
+    4K monitor     -> ~24px base (capped)
+  If the wall monitor is still hard to read, raise the 1.05vw. If things
+  overflow, lower it. Nothing else needs to change.
+*/
+html { font-size: clamp(15px, 1.05vw, 24px); }
+
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #232826;
+  background: #f5f6f3;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-thumb { background: #d0d6d0; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes pop-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+.pop-in { animation: pop-in .15s ease-out; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.fade-in { animation: fade-in .12s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pop-in, .fade-in { animation: none; }
+}
