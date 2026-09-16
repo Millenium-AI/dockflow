@@ -73,3 +73,31 @@ values
   ('Nick Harris',      'SIB',        'Scope of demolition',                  'Waiting on survey',    'waiting-permits', null, null, 'slate', 'normal', 3),
   ('Dana Beach',       'Broadwater', 'Dock, 4 concrete pilings',             'Waiting on permit',    'waiting-permits', null, null, 'sage',  'high',   4),
   ('Permit Pending',   'NE',         'Permit submitted',                     'Waiting on approval',  'waiting-permits', null, null, 'sand',  'normal', 5);
+
+-- ---------------------------------------------------------------------------
+-- Board settings — one shared row holding column visibility, width and
+-- order, so every screen looking at the board sees the same layout. Added
+-- when column customization (hide/show, resize, reorder) shipped.
+-- ---------------------------------------------------------------------------
+create table if not exists public.dockflow_board_settings (
+  id         int primary key default 1 check (id = 1),
+  columns    jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+create or replace function public.dockflow_settings_touch() returns trigger
+  language plpgsql
+  set search_path = public
+  as $$ begin new.updated_at = now(); return new; end $$;
+
+drop trigger if exists dockflow_board_settings_touch on public.dockflow_board_settings;
+create trigger dockflow_board_settings_touch before update on public.dockflow_board_settings
+  for each row execute function public.dockflow_settings_touch();
+
+alter table public.dockflow_board_settings enable row level security;
+
+drop policy if exists dockflow_board_settings_open on public.dockflow_board_settings;
+create policy dockflow_board_settings_open on public.dockflow_board_settings
+  for all to anon, authenticated using (true) with check (true);
+
+alter table public.dockflow_jobs add column if not exists sort_order int;

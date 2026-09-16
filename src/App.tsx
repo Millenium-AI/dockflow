@@ -1,43 +1,46 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { Plus, Search, X, Trash2, WifiOff } from 'lucide-react';
-import { colorTokens, statusConfig, type ColorKey, type Job, type JobStatus } from './data';
-import { fetchJobs, moveJob, removeJob, saveJob } from './lib/jobs';
+import {
+  ChevronDown, ChevronUp, Eye, EyeOff, Minus, Plus, Search, Settings, Trash2, WifiOff, X,
+} from 'lucide-react';
+import {
+  colorTokens, columnDefaults, defaultLayout, type ColorKey, type ColumnDefaults,
+  type ColumnLayout, type Job, type JobStatus,
+} from '../dockflow/src/data';
+import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
+import { fetchLayout, saveLayout } from './lib/settings';
 
 const REFRESH_MS = 20_000;
 const fieldClass =
   'w-full rounded-lg border border-[#dde2dc] bg-white px-3 py-2 text-sm text-[#2c3230] outline-none transition focus:border-[#5b8a9e] focus:ring-2 focus:ring-[#5b8a9e]/20';
+const labelClass = 'text-sm font-semibold text-[#8a928c]';
 
-/** Group the columns into rows of 12 spans, purely from statusConfig. */
-const rows: (typeof statusConfig)[] = [];
-let acc = 0;
-for (const col of statusConfig) {
-  if (acc === 0) rows.push([]);
-  rows[rows.length - 1].push(col);
-  acc = (acc + col.span) % 12;
-}
-const gridTemplateRows = rows
-  .map((r) => (r.every((c) => c.compact) ? 'minmax(0, 0.55fr)' : 'minmax(0, 1fr)'))
-  .join(' ');
+type RenderColumn = ColumnDefaults & ColumnLayout;
 
 export default function App() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [layout, setLayout] = useState<ColumnLayout[]>(defaultLayout);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Job | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState<JobStatus | null>(null);
 
-  // Don't let a background refresh yank the board out from under someone mid-edit.
-  const busy = showForm || confirmDelete !== null || dragOver !== null;
+  // Drag state for free-position job reordering.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ status: JobStatus; index: number } | null>(null);
+
+  const busy = showForm || showSettings || confirmDelete !== null || draggingId !== null;
   const busyRef = useRef(busy);
   busyRef.current = busy;
 
   const refresh = useCallback(async () => {
     try {
-      setJobs(await fetchJobs());
+      const [jobRows, layoutRows] = await Promise.all([fetchJobs(), fetchLayout()]);
+      setJobs(jobRows);
+      setLayout(layoutRows);
       setOffline(false);
     } catch {
       setOffline(true);
@@ -67,18 +70,29 @@ export default function App() {
     }
   };
 
-  const handleMove = (id: string, status: JobStatus) =>
-    commit(
-      (cur) => cur.map((j) => (j.id === id ? { ...j, status } : j)),
-      () => moveJob(id, status)
-    );
+  const commitLayout = async (next: ColumnLayout[]) => {
+    setLayout(next);
+    try {
+      await saveLayout(next);
+      setOffline(false);
+    } catch {
+      setOffline(true);
+      refresh();
+    }
+  };
 
   const handleSave = (job: Job) => {
+    const isNew = !jobs.some((j) => j.id === job.id);
+    const statusChanged = editing && editing.status !== job.status;
+    const finalJob =
+      isNew || statusChanged
+        ? { ...job, sortOrder: jobs.filter((j) => j.status === job.status && j.id !== job.id).length }
+        : job;
     setEditing(null);
     setShowForm(false);
     commit(
-      (cur) => (cur.some((j) => j.id === job.id) ? cur.map((j) => (j.id === job.id ? job : j)) : [...cur, job]),
-      () => saveJob(job)
+      (cur) => (cur.some((j) => j.id === finalJob.id) ? cur.map((j) => (j.id === finalJob.id ? finalJob : j)) : [...cur, finalJob]),
+      () => saveJob(finalJob)
     );
   };
 
@@ -92,16 +106,63 @@ export default function App() {
     );
   };
 
-  /** One pass instead of one filter per column. */
+  /** Drops job `jobId` into `destStatus` at position `targetIndex` among that column's other jobs. */
+  const handleReorder = (jobId: string, destStatus: JobStatus, targetIndex: number) => {
+    const moving = jobs.find((j) => j.id === jobId);
+    if (!moving) return;
+    const destItems = jobs.filter((j) => j.status === destStatus && j.id !== jobId);
+    const clamped = Math.max(0, Math.min(targetIndex, destItems.length));
+    const newDest = [...destItems];
+    newDest.splice(clamped, 0, { ...moving, status: destStatus });
+    const orderedIds = newDest.map((j) => j.id);
+
+    commit(
+      (cur) => {
+        const others = cur.filter((j) => j.status !== destStatus && j.id !== jobId);
+        return [...others, ...newDest];
+      },
+      () => reorderColumn(destStatus, orderedIds)
+    );
+  };
+
+  const toggleVisible = (id: JobStatus) =>
+    commitLayout(layout.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)));
+
+  const changeSpan = (id: JobStatus, delta: number) =>
+    commitLayout(
+      layout.map((c) => (c.id === id ? { ...c, span: Math.max(1, Math.min(12, c.span + delta)) } : c))
+    );
+
+  const moveColumn = (id: JobStatus, direction: -1 | 1) => {
+    const sorted = [...layout].sort((a, b) => a.position - b.position);
+    const idx = sorted.findIndex((c) => c.id === id);
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    commitLayout(
+      layout.map((c) => (c.id === a.id ? { ...c, position: b.position } : c.id === b.id ? { ...c, position: a.position } : c))
+    );
+  };
+
   const byStatus = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const groups = Object.fromEntries(statusConfig.map((c) => [c.id, [] as Job[]])) as Record<JobStatus, Job[]>;
+    const groups: Record<string, Job[]> = {};
     for (const j of jobs) {
       if (q && !`${j.customerName} ${j.scope} ${j.area} ${j.assignedTo} ${j.note}`.toLowerCase().includes(q)) continue;
-      groups[j.status]?.push(j);
+      (groups[j.status] ??= []).push(j);
     }
     return groups;
   }, [jobs, search]);
+
+  const visibleColumns: RenderColumn[] = useMemo(
+    () =>
+      layout
+        .filter((c) => c.visible)
+        .sort((a, b) => a.position - b.position)
+        .map((c) => ({ ...columnDefaults.find((d) => d.id === c.id)!, ...c })),
+    [layout]
+  );
 
   const openEdit = (job: Job) => {
     setEditing(job);
@@ -118,7 +179,7 @@ export default function App() {
           </span>
           {offline && (
             <span className="flex items-center gap-1.5 rounded-md bg-[#fbf0ee] px-2 py-1 text-xs font-semibold text-[#b04a36]">
-              <WifiOff size="1em" /> Can’t reach the database — showing the last board we loaded
+              <WifiOff size="1em" /> Can't reach the database — showing the last board we loaded
             </span>
           )}
         </div>
@@ -132,6 +193,13 @@ export default function App() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-[#dde2dc] bg-white px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f0f3ef]"
+            aria-label="Board settings"
+          >
+            <Settings size="1em" /> Columns
+          </button>
           <button
             onClick={() => {
               setEditing(null);
@@ -147,22 +215,36 @@ export default function App() {
       <main className="min-h-0 flex-1 p-4">
         {loading ? (
           <p className="text-sm text-[#9aa29c]">Loading the board…</p>
+        ) : visibleColumns.length === 0 ? (
+          <p className="text-sm text-[#9aa29c]">Every column is hidden. Open Columns to bring one back.</p>
         ) : (
-          <div className="grid h-full grid-cols-12 gap-3" style={{ gridTemplateRows }}>
-            {statusConfig.map((col) => (
+          <div className="grid h-full gap-3" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridAutoRows: 'minmax(0, 1fr)' }}>
+            {visibleColumns.map((col) => (
               <BoardColumn
                 key={col.id}
                 col={col}
-                jobs={byStatus[col.id]}
-                dragOver={dragOver}
-                setDragOver={setDragOver}
-                onDrop={handleMove}
+                jobs={byStatus[col.id] ?? []}
+                draggingId={draggingId}
+                setDraggingId={setDraggingId}
+                dropTarget={dropTarget}
+                setDropTarget={setDropTarget}
+                onReorder={handleReorder}
                 onEdit={openEdit}
               />
             ))}
           </div>
         )}
       </main>
+
+      {showSettings && (
+        <SettingsPanel
+          layout={layout}
+          onClose={() => setShowSettings(false)}
+          onToggleVisible={toggleVisible}
+          onChangeSpan={changeSpan}
+          onMove={moveColumn}
+        />
+      )}
 
       {showForm && (
         <JobForm
@@ -186,7 +268,7 @@ export default function App() {
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base font-semibold">Delete this job?</p>
-            <p className="mt-1 text-sm text-[#8a928c]">It will disappear from every screen. This can’t be undone.</p>
+            <p className="mt-1 text-sm text-[#8a928c]">It will disappear from every screen. This can't be undone.</p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => setConfirmDelete(null)}
@@ -208,67 +290,228 @@ export default function App() {
   );
 }
 
+function SettingsPanel({
+  layout,
+  onClose,
+  onToggleVisible,
+  onChangeSpan,
+  onMove,
+}: {
+  layout: ColumnLayout[];
+  onClose: () => void;
+  onToggleVisible: (id: JobStatus) => void;
+  onChangeSpan: (id: JobStatus, delta: number) => void;
+  onMove: (id: JobStatus, direction: -1 | 1) => void;
+}) {
+  const sorted = [...layout].sort((a, b) => a.position - b.position);
+  return (
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
+      <div
+        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e0e4de] bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#ecefed] px-5 py-3">
+          <h2 className="text-lg font-bold">Columns</h2>
+          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f0f3ef]" aria-label="Close">
+            <X size="1em" />
+          </button>
+        </div>
+        <div className="max-h-[60vh] space-y-1.5 overflow-y-auto px-4 py-4">
+          {sorted.map((col, i) => {
+            const meta = columnDefaults.find((d) => d.id === col.id)!;
+            return (
+              <div
+                key={col.id}
+                className={`flex items-center gap-2 rounded-lg border border-[#e4e8e3] px-3 py-2 ${
+                  col.visible ? 'bg-white' : 'bg-[#f5f6f3] opacity-60'
+                }`}
+              >
+                <div className="flex flex-col">
+                  <button
+                    onClick={() => onMove(col.id, -1)}
+                    disabled={i === 0}
+                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f0f3ef] disabled:opacity-25"
+                    aria-label={`Move ${meta.label} up`}
+                  >
+                    <ChevronUp size="1em" />
+                  </button>
+                  <button
+                    onClick={() => onMove(col.id, 1)}
+                    disabled={i === sorted.length - 1}
+                    className="rounded p-0.5 text-[#8a928c] hover:bg-[#f0f3ef] disabled:opacity-25"
+                    aria-label={`Move ${meta.label} down`}
+                  >
+                    <ChevronDown size="1em" />
+                  </button>
+                </div>
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.accent }} />
+                <span className="flex-1 truncate text-sm font-semibold text-[#3a423d]">{meta.label}</span>
+                <div className="flex items-center gap-1 text-sm text-[#6a726c]">
+                  <button
+                    onClick={() => onChangeSpan(col.id, -1)}
+                    disabled={col.span <= 1}
+                    className="rounded p-1 hover:bg-[#f0f3ef] disabled:opacity-25"
+                    aria-label={`Narrower ${meta.label}`}
+                  >
+                    <Minus size="0.9em" />
+                  </button>
+                  <span className="w-10 text-center font-mono text-xs">{col.span}/12</span>
+                  <button
+                    onClick={() => onChangeSpan(col.id, 1)}
+                    disabled={col.span >= 12}
+                    className="rounded p-1 hover:bg-[#f0f3ef] disabled:opacity-25"
+                    aria-label={`Wider ${meta.label}`}
+                  >
+                    <Plus size="0.9em" />
+                  </button>
+                </div>
+                <button
+                  onClick={() => onToggleVisible(col.id)}
+                  className="rounded p-1.5 text-[#6a726c] hover:bg-[#f0f3ef]"
+                  aria-label={col.visible ? `Hide ${meta.label}` : `Show ${meta.label}`}
+                >
+                  {col.visible ? <Eye size="1em" /> : <EyeOff size="1em" />}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div className="border-t border-[#ecefed] px-5 py-3 text-xs text-[#8a928c]">
+          Width is out of 12 per row — columns wrap to a new row once a row fills up. Hiding a column keeps its jobs; they reappear when you show it again.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BoardColumn({
   col,
   jobs,
-  dragOver,
-  setDragOver,
-  onDrop,
+  draggingId,
+  setDraggingId,
+  dropTarget,
+  setDropTarget,
+  onReorder,
   onEdit,
 }: {
-  col: (typeof statusConfig)[number];
+  col: RenderColumn;
   jobs: Job[];
-  dragOver: JobStatus | null;
-  setDragOver: (s: JobStatus | null) => void;
-  onDrop: (id: string, status: JobStatus) => void;
+  draggingId: string | null;
+  setDraggingId: (id: string | null) => void;
+  dropTarget: { status: JobStatus; index: number } | null;
+  setDropTarget: (t: { status: JobStatus; index: number } | null) => void;
+  onReorder: (jobId: string, destStatus: JobStatus, index: number) => void;
   onEdit: (job: Job) => void;
 }) {
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(null);
-    const id = e.dataTransfer.getData('jobId');
-    if (id) onDrop(id, col.id);
+  const displayJobs = draggingId ? jobs.filter((j) => j.id !== draggingId) : jobs;
+  const isDropHere = dropTarget?.status === col.id;
+
+  const finishDrop = (index: number) => {
+    if (draggingId) onReorder(draggingId, col.id, index);
+    setDraggingId(null);
+    setDropTarget(null);
   };
 
   return (
     <div
       style={{ gridColumn: `span ${col.span} / span ${col.span}` }}
       className={`flex min-h-0 flex-col rounded-xl border bg-[#fafbfa] transition ${
-        dragOver === col.id ? 'border-[#5b8a9e] bg-[#edf2f4]' : 'border-[#e2e6e1]'
+        isDropHere ? 'border-[#5b8a9e] bg-[#edf2f4]' : 'border-[#e2e6e1]'
       }`}
       onDragOver={(e) => {
         e.preventDefault();
-        if (dragOver !== col.id) setDragOver(col.id);
+        if (!isDropHere || dropTarget?.index !== displayJobs.length) {
+          setDropTarget({ status: col.id, index: displayJobs.length });
+        }
       }}
       onDragLeave={(e) => {
-        if (e.currentTarget === e.target) setDragOver(null);
+        if (e.currentTarget === e.target) setDropTarget(null);
       }}
-      onDrop={handleDrop}
+      onDrop={(e) => {
+        e.preventDefault();
+        finishDrop(displayJobs.length);
+      }}
     >
       <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-2.5">
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
         <h2 className="text-base font-bold tracking-tight text-[#3a423d]">{col.label}</h2>
         <span className="text-sm font-semibold text-[#9aa29c]">{jobs.length}</span>
       </div>
-      <div className={`min-h-0 flex-1 overflow-y-auto px-2 pb-2 ${col.compact ? 'flex flex-wrap gap-2' : 'space-y-2'}`}>
-        {jobs.length === 0 ? (
+      <div className={`min-h-0 flex-1 overflow-y-auto px-2 pb-2 ${col.compact ? 'flex flex-wrap items-start gap-2' : 'space-y-2'}`}>
+        {displayJobs.length === 0 && !isDropHere && (
           <div className="w-full rounded-lg border border-dashed border-[#d8ddd7] py-5 text-center">
             <p className="text-sm text-[#a8b0aa]">Nothing here</p>
           </div>
-        ) : (
-          jobs.map((job) => <JobCard key={job.id} job={job} onEdit={onEdit} compact={col.compact} />)
         )}
+        {displayJobs.map((job, i) => (
+          <div key={job.id} className={col.compact ? 'contents' : undefined}>
+            {isDropHere && dropTarget?.index === i && <DropLine compact={col.compact} />}
+            <JobCard
+              job={job}
+              onEdit={onEdit}
+              compact={col.compact}
+              onDragStartCard={() => setDraggingId(job.id)}
+              onDragEndCard={() => {
+                setDraggingId(null);
+                setDropTarget(null);
+              }}
+              onDragOverCard={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                const before = col.compact
+                  ? e.clientX - rect.left < rect.width / 2
+                  : e.clientY - rect.top < rect.height / 2;
+                const idx = before ? i : i + 1;
+                if (!isDropHere || dropTarget?.index !== idx) setDropTarget({ status: col.id, index: idx });
+              }}
+              onDropCard={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                finishDrop(dropTarget?.status === col.id ? dropTarget.index : i);
+              }}
+            />
+          </div>
+        ))}
+        {isDropHere && dropTarget?.index === displayJobs.length && <DropLine compact={col.compact} />}
       </div>
     </div>
   );
 }
 
-function JobCard({ job, onEdit, compact }: { job: Job; onEdit: (job: Job) => void; compact?: boolean }) {
+function DropLine({ compact }: { compact?: boolean }) {
+  return compact ? (
+    <div className="my-1 h-9 w-1 shrink-0 rounded-full bg-[#5b8a9e]" />
+  ) : (
+    <div className="h-1 rounded-full bg-[#5b8a9e]" />
+  );
+}
+
+function JobCard({
+  job,
+  onEdit,
+  compact,
+  onDragStartCard,
+  onDragEndCard,
+  onDragOverCard,
+  onDropCard,
+}: {
+  job: Job;
+  onEdit: (job: Job) => void;
+  compact?: boolean;
+  onDragStartCard: () => void;
+  onDragEndCard: () => void;
+  onDragOverCard: (e: DragEvent<HTMLDivElement>) => void;
+  onDropCard: (e: DragEvent<HTMLDivElement>) => void;
+}) {
   const color = colorTokens[job.color ?? 'none'].hex;
   return (
     <div
       draggable
-      onDragStart={(e: DragEvent<HTMLDivElement>) => e.dataTransfer.setData('jobId', job.id)}
+      onDragStart={onDragStartCard}
+      onDragEnd={onDragEndCard}
+      onDragOver={onDragOverCard}
+      onDrop={onDropCard}
       onClick={() => onEdit(job)}
       className={`relative cursor-pointer rounded-lg border border-[#e4e8e3] bg-white transition hover:border-[#cdd4ce] hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] ${
         compact ? 'w-44' : ''
@@ -295,8 +538,6 @@ function JobCard({ job, onEdit, compact }: { job: Job; onEdit: (job: Job) => voi
     </div>
   );
 }
-
-const labelClass = 'text-sm font-semibold text-[#8a928c]';
 
 function JobForm({
   job,
@@ -359,8 +600,8 @@ function JobForm({
             <div>
               <label className={labelClass}>Column</label>
               <select className={`${fieldClass} mt-1`} value={draft.status} onChange={(e) => set('status', e.target.value as JobStatus)}>
-                {statusConfig.map((s) => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
+                {columnDefaults.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
             </div>

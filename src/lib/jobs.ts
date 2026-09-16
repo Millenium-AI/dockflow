@@ -3,7 +3,6 @@ import type { ColorKey, Job, JobPriority, JobStatus } from '../data';
 
 const TABLE = 'dockflow_jobs';
 
-/** Postgres uses snake_case; the app uses camelCase. These two functions are the only bridge. */
 interface Row {
   id: string;
   customer_name: string;
@@ -29,6 +28,7 @@ const fromRow = (r: Row): Job => ({
   assignedTo: r.assigned_to ?? '',
   color: r.color ?? 'none',
   priority: r.priority ?? 'normal',
+  sortOrder: r.sort_order ?? undefined,
 });
 
 const toRow = (j: Job) => ({
@@ -42,6 +42,7 @@ const toRow = (j: Job) => ({
   assigned_to: j.assignedTo || null,
   color: j.color || 'none',
   priority: j.priority || 'normal',
+  sort_order: typeof j.sortOrder === 'number' ? j.sortOrder : null,
 });
 
 export async function fetchJobs(): Promise<Job[]> {
@@ -59,12 +60,18 @@ export async function saveJob(job: Job): Promise<void> {
   if (error) throw error;
 }
 
-export async function moveJob(id: string, status: JobStatus): Promise<void> {
-  const { error } = await supabase.from(TABLE).update({ status }).eq('id', id);
-  if (error) throw error;
-}
-
 export async function removeJob(id: string): Promise<void> {
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
   if (error) throw error;
+}
+
+/**
+ * Puts `orderedIds` into `status`, in that exact order, by writing 0..n-1
+ * into sort_order for each. Used for every drag: moving within a column,
+ * moving to a different column, and dropping at a specific spot in either.
+ */
+export async function reorderColumn(status: JobStatus, orderedIds: string[]): Promise<void> {
+  await Promise.all(
+    orderedIds.map((id, index) => supabase.from(TABLE).update({ status, sort_order: index }).eq('id', id))
+  );
 }
