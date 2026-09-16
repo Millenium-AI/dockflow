@@ -154,6 +154,13 @@ export default function App() {
     saveAreaColors(updated).catch(() => setOffline(true));
   };
 
+  const deleteAreaColor = (areaCode: string) => {
+    const updated = { ...areaColors };
+    delete updated[areaCode];
+    setAreaColors(updated);
+    saveAreaColors(updated).catch(() => setOffline(true));
+  };
+
   const byStatus = useMemo(() => {
     const q = search.trim().toLowerCase();
     const groups: Record<string, Job[]> = {};
@@ -268,6 +275,7 @@ export default function App() {
           areaColors={areaColors}
           onClose={() => setShowAreaSettings(false)}
           onSetColor={setAreaColor}
+          onDeleteColor={deleteAreaColor}
         />
       )}
 
@@ -688,9 +696,47 @@ function AreaColorSettingsPanel({
   areaColors: AreaColorSettings;
   onClose: () => void;
   onSetColor: (areaCode: string, color: AreaColorKey) => void;
+  onDeleteColor: (areaCode: string) => void;
 }) {
   const [newArea, setNewArea] = useState('');
-  const allAreas = [...new Set([...Object.keys(areaColors), newArea].filter(Boolean))].sort();
+  const [editingArea, setEditingArea] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [areaOpacity, setAreaOpacity] = useState<Record<string, number>>(() => {
+    const opacities: Record<string, number> = {};
+    Object.keys(areaColors).forEach(key => {
+      opacities[key] = 1.0;
+    });
+    return opacities;
+  });
+
+  const allAreas = Object.keys(areaColors).sort();
+
+  const handleRename = (oldName: string, newName: string) => {
+    if (newName && newName !== oldName && !allAreas.includes(newName)) {
+      const updated = { ...areaColors };
+      delete updated[oldName];
+      updated[newName] = areaColors[oldName];
+      onSetColor(newName, updated[newName]);
+      setEditingArea(null);
+      setEditValue('');
+    }
+  };
+
+  const handleDelete = (area: string) => {
+    onDeleteColor(area);
+    setAreaOpacity(prev => {
+      const updated = { ...prev };
+      delete updated[area];
+      return updated;
+    });
+  };
+
+  const handleAdd = () => {
+    if (newArea && !allAreas.includes(newArea)) {
+      onSetColor(newArea, 'red');
+      setNewArea('');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
@@ -708,39 +754,93 @@ function AreaColorSettingsPanel({
         <div className="max-h-[60vh] space-y-3 overflow-y-auto px-5 py-4">
           <div>
             <label className={labelClass}>Add new area</label>
-            <input
-              className={`${fieldClass} mt-1`}
-              value={newArea}
-              onChange={(e) => setNewArea(e.target.value.toUpperCase())}
-              placeholder="e.g., TI, NE, MB"
-              maxLength={3}
-            />
+            <div className="mt-1 flex gap-2">
+              <input
+                className={`${fieldClass} flex-1`}
+                value={newArea}
+                onChange={(e) => setNewArea(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                placeholder="e.g., TI, NE, MB, Downtown"
+                maxLength={24}
+              />
+              <button
+                onClick={handleAdd}
+                disabled={!newArea || allAreas.includes(newArea)}
+                className="rounded-lg bg-[#2f5260] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#24414c] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size="1em" />
+              </button>
+            </div>
           </div>
 
           {allAreas.length > 0 && (
             <>
               <div className="border-t border-[#ecefed] pt-3">
-                <p className="text-xs font-semibold text-[#8a928c] mb-3">Assign colors to areas:</p>
+                <p className="text-xs font-semibold text-[#8a928c] mb-3">Area colors:</p>
               </div>
               {allAreas.map((area) => (
-                <div
-                  key={area}
-                  className="flex items-center gap-3 rounded-lg border border-[#e4e8e3] p-3 bg-white"
-                >
-                  <span className="w-12 font-mono font-semibold text-[#3a423d]">{area}</span>
-                  <div className="flex-1 flex items-center gap-2">
-                    {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
-                      <button
-                        key={key}
-                        onClick={() => onSetColor(area, key as AreaColorKey)}
-                        className={`h-8 w-8 rounded-full border-2 transition ${
-                          areaColors[area] === key ? 'scale-110 border-[#2a312d]' : 'border-transparent hover:scale-105'
-                        }`}
-                        style={{ background: hex }}
-                        title={label}
-                        aria-label={label}
+                <div key={area} className="rounded-lg border border-[#e4e8e3] p-3 bg-white space-y-2.5">
+                  <div className="flex items-center gap-3">
+                    {editingArea === area ? (
+                      <input
+                        className={`${fieldClass} flex-1 max-w-[140px]`}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRename(area, editValue);
+                          if (e.key === 'Escape') setEditingArea(null);
+                        }}
+                        maxLength={24}
+                        autoFocus
                       />
-                    ))}
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setEditingArea(area);
+                          setEditValue(area);
+                        }}
+                        className="font-mono font-semibold text-[#3a423d] hover:text-[#2f5260] hover:underline text-left"
+                        title="Click to edit"
+                      >
+                        {area}
+                      </button>
+                    )}
+                    <div className="flex-1 flex items-center gap-1.5">
+                      {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
+                        <button
+                          key={key}
+                          onClick={() => onSetColor(area, key as AreaColorKey)}
+                          className={`h-7 w-7 rounded-full border-2 transition ${
+                            areaColors[area] === key ? 'scale-110 border-[#2a312d]' : 'border-transparent hover:scale-105'
+                          }`}
+                          style={{ background: hex }}
+                          title={label}
+                          aria-label={label}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => handleDelete(area)}
+                      className="rounded p-1.5 text-[#8a928c] hover:bg-[#fbf0ee] hover:text-[#b04a36]"
+                      aria-label={`Delete ${area}`}
+                      title="Delete area"
+                    >
+                      <Trash2 size="1em" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3 px-1">
+                    <label className="text-xs font-semibold text-[#8a928c] w-16">Opacity:</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={(areaOpacity[area] ?? 1.0) * 100}
+                      onChange={(e) => setAreaOpacity(prev => ({ ...prev, [area]: parseInt(e.target.value) / 100 }))}
+                      className="flex-1 h-2 bg-[#dde2dc] rounded-lg appearance-none cursor-pointer accent-[#2f5260]"
+                    />
+                    <span className="text-xs font-semibold text-[#8a928c] w-10 text-right">
+                      {Math.round((areaOpacity[area] ?? 1.0) * 100)}%
+                    </span>
                   </div>
                 </div>
               ))}

@@ -78,11 +78,15 @@ values
 -- Board settings — one shared row holding column visibility, width and
 -- order, so every screen looking at the board sees the same layout. Added
 -- when column customization (hide/show, resize, reorder) shipped.
+--
+-- area_colors: maps area codes to colors, supports edit/delete operations
+-- area_opacity: maps area codes to opacity values (0.0 to 1.0)
 -- ---------------------------------------------------------------------------
 create table if not exists public.dockflow_board_settings (
   id           int primary key default 1 check (id = 1),
   columns      jsonb not null,
   area_colors  jsonb default '{"TI":"red","NE":"blue","MB":"green"}'::jsonb,
+  area_opacity jsonb default '{"TI":1.0,"NE":1.0,"MB":1.0}'::jsonb,
   updated_at   timestamptz not null default now()
 );
 
@@ -103,3 +107,4 @@ create policy dockflow_board_settings_open on public.dockflow_board_settings
 
 alter table public.dockflow_jobs add column if not exists sort_order int;
 alter table public.dockflow_board_settings add column if not exists area_colors jsonb default '{"TI":"red","NE":"blue","MB":"green"}'::jsonb;
+alter table public.dockflow_board_settings add column if not exists area_opacity jsonb default '{"TI":1.0,"NE":1.0,"MB":1.0}'::jsonb;
