@@ -4,16 +4,12 @@
 
 /*
   ONE KNOB FOR THE WHOLE BOARD.
-  Every size in the app is in rem, so this single line scales all text,
-  padding and gaps to the screen it's running on.
-    1080p monitor  -> ~20px base
-    laptop screen  -> ~15px base
-    4K monitor     -> ~24px base (capped)
-  The --font-scale variable (0.85–1.3) lets users adjust on top of viewport scaling.
+  Preset sizes are discrete to avoid jumpy scaling.
+  Small: 13px  Normal: 16px  Large: 20px  XL: 24px
 */
 html {
-  --font-scale: 1;
-  font-size: clamp(15px, calc(1.05vw * var(--font-scale)), 24px);
+  --font-size: 16px;
+  font-size: var(--font-size);
 }
 
 :root {

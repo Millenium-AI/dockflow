@@ -1,7 +1,8 @@
 import { supabase } from './supabase';
-import type { Job, JobPriority, JobStatus, JobType } from '../data';
+import type { Job, JobFile, JobPriority, JobStatus, JobType } from '../data';
 
 const TABLE = 'dockflow_jobs';
+const FILES_BUCKET = 'job-files';
 
 interface Row {
   id: string;
@@ -15,6 +16,7 @@ interface Row {
   priority: JobPriority | null;
   job_type: JobType | null;
   sort_order: number | null;
+  files: JobFile[] | null;
 }
 
 const fromRow = (r: Row): Job => ({
@@ -29,6 +31,7 @@ const fromRow = (r: Row): Job => ({
   priority: r.priority ?? 'normal',
   jobType: r.job_type ?? 'install',
   sortOrder: r.sort_order ?? undefined,
+  files: r.files ?? [],
 });
 
 const toRow = (j: Job) => ({
@@ -43,6 +46,7 @@ const toRow = (j: Job) => ({
   priority: j.priority || 'normal',
   job_type: j.jobType || 'install',
   sort_order: typeof j.sortOrder === 'number' ? j.sortOrder : null,
+  files: j.files && j.files.length > 0 ? j.files : null,
 });
 
 export async function fetchJobs(): Promise<Job[]> {
@@ -74,4 +78,43 @@ export async function reorderColumn(status: JobStatus, orderedIds: string[]): Pr
   await Promise.all(
     orderedIds.map((id, index) => supabase.from(TABLE).update({ status, sort_order: index }).eq('id', id))
   );
+}
+
+/** Upload a file to a job. Updates job.files array. */
+export async function uploadJobFile(jobId: string, file: File, currentFiles: JobFile[]): Promise<JobFile[]> {
+  const timestamp = new Date().toISOString();
+  const path = `${jobId}/${timestamp}-${file.name}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(FILES_BUCKET)
+    .upload(path, file);
+  if (uploadError) throw uploadError;
+
+  const newFile: JobFile = {
+    name: file.name,
+    size: file.size,
+    uploadedAt: timestamp,
+    path,
+  };
+
+  return [...currentFiles, newFile];
+}
+
+/** Delete a file from a job. Updates job.files array. */
+export async function deleteJobFile(jobId: string, filePath: string, currentFiles: JobFile[]): Promise<JobFile[]> {
+  const { error: deleteError } = await supabase.storage
+    .from(FILES_BUCKET)
+    .remove([filePath]);
+  if (deleteError) throw deleteError;
+
+  return currentFiles.filter((f) => f.path !== filePath);
+}
+
+/** Get a download URL for a file. */
+export async function getJobFileUrl(jobId: string, filePath: string): Promise<string> {
+  const { data } = await supabase.storage
+    .from(FILES_BUCKET)
+    .createSignedUrl(filePath, 3600); // 1 hour expiry
+  if (!data?.signedUrl) throw new Error('Failed to generate download URL');
+  return data.signedUrl;
 }

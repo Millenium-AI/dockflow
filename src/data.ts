@@ -6,6 +6,13 @@ export type JobPriority = 'low' | 'normal' | 'high';
 export type JobType = 'install' | 'maintenance';
 export type AreaColorKey = 'none' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink' | 'grey' | 'brown';
 
+export interface JobFile {
+  name: string;
+  size: number;
+  uploadedAt: string;
+  path: string;
+}
+
 export interface Job {
   id: string;
   customerName: string;
@@ -20,6 +27,8 @@ export interface Job {
   jobType?: JobType;
   /** Position within its column. Only meaningful relative to other jobs in the same column. */
   sortOrder?: number;
+  /** Attached files and documents. */
+  files?: JobFile[];
 }
 
 export const jobTypeTokens: Record<JobType, { label: string; hex: string }> = {

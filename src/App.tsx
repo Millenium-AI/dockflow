@@ -123,10 +123,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>('barges');
-  const [fontScale, setFontScale] = useState(() => {
-    const saved = localStorage.getItem('dockflow_font_scale');
-    return saved ? parseFloat(saved) : 1;
+  const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(() => {
+    const saved = localStorage.getItem('dockflow_font_size');
+    return (saved as 'sm' | 'md' | 'lg' | 'xl') ?? 'md';
   });
+
+  const fontSizeMap = { sm: '13px', md: '16px', lg: '20px', xl: '24px' };
 
   // dnd-kit: id of the job card currently being dragged, if any.
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -161,9 +163,9 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   }, []);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--font-scale', fontScale.toString());
-    localStorage.setItem('dockflow_font_scale', fontScale.toString());
-  }, [fontScale]);
+    document.documentElement.style.setProperty('--font-size', fontSizeMap[fontSize]);
+    localStorage.setItem('dockflow_font_size', fontSize);
+  }, [fontSize]);
 
   useEffect(() => {
     refresh();
@@ -367,19 +369,21 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-[#9aa29c]">Size</span>
-            <input
-              type="range"
-              min="0.7"
-              max="1.5"
-              step="0.05"
-              value={fontScale}
-              onChange={(e) => setFontScale(parseFloat(e.target.value))}
-              className="h-1.5 w-24 cursor-pointer accent-[#6B1919]"
-              aria-label="Adjust text size"
-            />
-            <span className="text-xs font-semibold text-[#9aa29c] w-6 text-right">{Math.round(fontScale * 100)}%</span>
+          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1">
+            {(['sm', 'md', 'lg', 'xl'] as const).map((size) => (
+              <button
+                key={size}
+                onClick={() => setFontSize(size)}
+                className={`px-2 py-1 text-xs font-semibold rounded transition ${
+                  fontSize === size
+                    ? 'bg-[#6B1919] text-white'
+                    : 'text-[#3a423d] hover:bg-[#f5f1e8]'
+                }`}
+                title={`Size: ${size.toUpperCase()}`}
+              >
+                {size.toUpperCase()}
+              </button>
+            ))}
           </div>
           <div className="relative">
             <Search size="1em" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9aa29c]" />
@@ -684,7 +688,7 @@ function JobForm({
   onDelete?: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<Job>(
-    job ?? { id: crypto.randomUUID(), customerName: '', status: 'ready', priority: 'normal' }
+    job ?? { id: crypto.randomUUID(), customerName: '', status: 'ready', priority: 'normal', files: [] }
   );
   const set = <K extends keyof Job>(key: K, value: Job[K]) => setDraft((cur) => ({ ...cur, [key]: value }));
   const knownAreas = Object.keys(areaColors).sort();
@@ -781,6 +785,52 @@ function JobForm({
                 <option value="install">Install</option>
                 <option value="maintenance">Maintenance</option>
               </select>
+            </div>
+          </div>
+
+          {/* Attachments Section */}
+          <div className="space-y-2 border-t border-[#e8dcc8] pt-3">
+            <label className={labelClass}>Attachments</label>
+            <div className="flex flex-col gap-2">
+              <input
+                type="file"
+                multiple
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    const file = e.target.files[0];
+                    const newFile = {
+                      name: file.name,
+                      size: file.size,
+                      uploadedAt: new Date().toISOString(),
+                      path: `${draft.id}/${file.name}`,
+                    };
+                    set('files', [...(draft.files ?? []), newFile]);
+                    e.target.value = '';
+                  }
+                }}
+                className="rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-2 text-sm cursor-pointer file:mr-3 file:rounded file:border-0 file:bg-[#6B1919] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white hover:file:bg-[#521212]"
+                accept="*/*"
+              />
+              {draft.files && draft.files.length > 0 && (
+                <div className="space-y-1 rounded-lg bg-[#faf8f3] p-2">
+                  {draft.files.map((file) => (
+                    <div key={file.path} className="flex items-center justify-between gap-2 rounded px-2 py-1.5 bg-white border border-[#e8dcc8] text-sm">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-[#3a423d] truncate">{file.name}</p>
+                        <p className="text-xs text-[#9aa29c]">{(file.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => set('files', draft.files!.filter((f) => f.path !== file.path))}
+                        className="shrink-0 rounded p-1 text-[#9aa29c] hover:bg-[#fbf0ee] hover:text-[#b04a36]"
+                        aria-label="Remove file"
+                      >
+                        <X size="1em" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
