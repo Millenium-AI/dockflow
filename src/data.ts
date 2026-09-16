@@ -72,11 +72,25 @@ interface TabGridSpec {
 }
 
 /**
- * Hard-coded grid placement per tab — no drag/resize, this is the whole
- * layout. Barges: three equal columns. Status: Ready takes the left half
- * full-height; Waiting/Permits takes the right half's top row; Hold and
- * Complete split the right half's bottom row.
+ * Hard-coded layout per tab — no drag/resize, this is the whole layout.
+ * Barges: three equal columns. Status: a flex row with Ready (50%) on left,
+ * and a flex column (50%) on right with Waiting (top 50%) and Hold|Complete
+ * (bottom 50%, themselves split 50/50).
  */
+export type LayoutType = 'grid' | 'flex-grid';
+
+export const tabLayoutSpecs: Record<ViewTab, { type: LayoutType; items: JobStatus[] }> = {
+  barges: {
+    type: 'grid',
+    items: ['barge-1', 'barge-2', 'barge-3'],
+  },
+  other: {
+    type: 'flex-grid',
+    items: ['ready', 'waiting-permits', 'hold', 'complete'],
+  },
+};
+
+/** Legacy — kept for backward compat but not used. */
 export const tabGridSpecs: Record<ViewTab, TabGridSpec> = {
   barges: {
     cols: 3,

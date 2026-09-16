@@ -7,7 +7,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, r
 import { CSS } from '@dnd-kit/utilities';
 import { LogOut, Plus, Search, Settings, Trash2, Wrench, WifiOff, X } from 'lucide-react';
 import {
-  areaColorTokens, columnDefaults, jobTypeTokens, tabGridSpecs,
+  areaColorTokens, columnDefaults, jobTypeTokens, tabGridSpecs, tabLayoutSpecs,
   type AreaColorKey, type AreaColorSettings, type ColumnDefaults,
   type Job, type JobStatus, type JobType, type ViewTab,
 } from './data';
@@ -305,11 +305,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     return groups;
   }, [jobs, search]);
 
-  const gridSpec = tabGridSpecs[viewTab];
+  const layoutSpec = tabLayoutSpecs[viewTab];
   const visibleColumns: RenderColumn[] = useMemo(
-    () => gridSpec.items.map((item) => columnDefaults.find((d) => d.id === item.id)!),
-    [gridSpec]
+    () => layoutSpec.items.map((id) => columnDefaults.find((d) => d.id === id)!),
+    [layoutSpec]
   );
+  const gridSpec = tabGridSpecs[viewTab];
 
   const openEdit = (job: Job) => {
     setEditing(job);
@@ -396,7 +397,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 p-4">
+      <main className="min-h-0 flex-1 overflow-hidden p-4">
         {loading ? (
           <p className="text-sm text-[#9aa29c]">Loading the board…</p>
         ) : (
@@ -407,19 +408,46 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div
-              className="grid h-full gap-3"
-              style={{
-                gridTemplateColumns: `repeat(${gridSpec.cols}, 1fr)`,
-                gridTemplateRows: `repeat(${gridSpec.rows}, 1fr)`,
-              }}
-            >
-              {visibleColumns.map((col, i) => (
-                <div key={col.id} style={{ gridColumn: gridSpec.items[i].gridColumn, gridRow: gridSpec.items[i].gridRow }}>
-                  <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+            {layoutSpec.type === 'grid' ? (
+              <div
+                className="grid h-full w-full gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${gridSpec.cols}, 1fr)`,
+                  gridTemplateRows: `repeat(${gridSpec.rows}, minmax(0, 1fr))`,
+                }}
+              >
+                {visibleColumns.map((col, i) => (
+                  <div
+                    key={col.id}
+                    style={{ gridColumn: gridSpec.items[i].gridColumn, gridRow: gridSpec.items[i].gridRow }}
+                    className="h-full w-full min-h-0 overflow-hidden"
+                  >
+                    <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full w-full gap-3">
+                {/* Left: Ready (50%) */}
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <BoardColumn col={visibleColumns[0]} jobs={byStatus[visibleColumns[0].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
                 </div>
-              ))}
-            </div>
+                {/* Right: Waiting (top 50%), Hold|Complete (bottom 50%) */}
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <BoardColumn col={visibleColumns[1]} jobs={byStatus[visibleColumns[1].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                  </div>
+                  <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <BoardColumn col={visibleColumns[2]} jobs={byStatus[visibleColumns[2].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <BoardColumn col={visibleColumns[3]} jobs={byStatus[visibleColumns[3].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <DragOverlay>
               {activeJob ? (
                 <div className="rotate-2 shadow-xl">
@@ -503,7 +531,7 @@ function BoardColumn({
 
   return (
     <div
-      className={`flex h-full flex-col rounded-xl border bg-white transition ${
+      className={`flex h-full min-h-0 flex-col rounded-xl border bg-white transition ${
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
