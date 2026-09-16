@@ -544,17 +544,37 @@ function JobCard({
 }) {
   const areaHex = areaColorTokens[areaColor].hex;
   const isNone = areaColor === 'none';
+
+  const handleDragStart = (e: DragEvent<HTMLDivElement>) => {
+    (e.target as HTMLDivElement).style.opacity = '0.5';
+    e.dataTransfer!.effectAllowed = 'move';
+    onDragStartCard();
+  };
+
+  const handleDragEnd = (e: DragEvent<HTMLDivElement>) => {
+    (e.target as HTMLDivElement).style.opacity = '1';
+    onDragEndCard();
+  };
+
   return (
     <div
       draggable
-      onDragStart={onDragStartCard}
-      onDragEnd={onDragEndCard}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onDragOver={onDragOverCard}
       onDrop={onDropCard}
-      onClick={() => onEdit(job)}
-      className={`relative cursor-pointer rounded-lg border transition hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] ${
+      onMouseDown={(e) => {
+        if (e.button !== 0) return;
+        const target = e.target as HTMLElement;
+        if (target.closest('button, input')) return;
+      }}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button, input')) return;
+        onEdit(job);
+      }}
+      className={`relative rounded-lg border transition hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] select-none ${
         compact ? 'w-44' : ''
-      } ${isNone ? 'border-[#e4e8e3] bg-white' : 'border-transparent'}`}
+      } ${isNone ? 'border-[#e4e8e3] bg-white' : 'border-transparent'} cursor-grab active:cursor-grabbing`}
       style={!isNone ? { backgroundColor: areaHex, borderColor: areaHex } : undefined}
     >
       <div className={`px-3 py-2 pl-3.5 ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
