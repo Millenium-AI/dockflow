@@ -14,6 +14,8 @@ create table if not exists public.dockflow_jobs (
                  check (color in ('none','coral','ocean','sage','sand','slate')),
   priority       text default 'normal'
                  check (priority in ('low','normal','high')),
+  job_type       text default 'install'
+                 check (job_type in ('install','maintenance')),
   sort_order     int,
   updated_at     timestamptz not null default now()
 );
@@ -136,3 +138,7 @@ alter table public.dockflow_board_settings alter column columns set default '[
   {"id":"hold","span":3,"position":5,"visible":true},
   {"id":"complete","span":12,"position":6,"visible":true}
 ]'::jsonb;
+
+-- Job type: independent of status/area — flags a repair/service call vs a new install.
+alter table public.dockflow_jobs add column if not exists job_type text default 'install'
+  check (job_type in ('install','maintenance'));

@@ -3,7 +3,8 @@ export type JobStatus =
   | 'ready' | 'waiting-permits' | 'hold' | 'complete';
 
 export type JobPriority = 'low' | 'normal' | 'high';
-export type AreaColorKey = 'none' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink';
+export type JobType = 'install' | 'maintenance';
+export type AreaColorKey = 'none' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink' | 'grey' | 'brown';
 
 export interface Job {
   id: string;
@@ -15,9 +16,16 @@ export interface Job {
   scheduledDate?: string;
   assignedTo?: string;
   priority?: JobPriority;
+  /** Independent of status/area — flags the kind of work, e.g. a repair vs a new install. */
+  jobType?: JobType;
   /** Position within its column. Only meaningful relative to other jobs in the same column. */
   sortOrder?: number;
 }
+
+export const jobTypeTokens: Record<JobType, { label: string; hex: string }> = {
+  install: { label: 'Install', hex: '#5b8a9e' },
+  maintenance: { label: 'Maintenance', hex: '#c8862b' },
+};
 
 export const areaColorTokens: Record<AreaColorKey, { label: string; hex: string }> = {
   none:   { label: 'None',   hex: '#e5e7eb' },
@@ -28,6 +36,8 @@ export const areaColorTokens: Record<AreaColorKey, { label: string; hex: string 
   blue:   { label: 'Blue',   hex: '#3b82f6' },
   purple: { label: 'Purple', hex: '#a855f7' },
   pink:   { label: 'Pink',   hex: '#ec4899' },
+  grey:   { label: 'Grey',   hex: '#6b7280' },
+  brown:  { label: 'Brown',  hex: '#92400e' },
 };
 
 /**
@@ -78,8 +88,13 @@ export interface AreaColorSettings {
   [areaCode: string]: AreaColorKey;
 }
 
+/** Territory color key, transcribed from the dispatch whiteboards. */
 export const defaultAreaColors: AreaColorSettings = {
-  'TI': 'red',
-  'NE': 'blue',
-  'MB': 'green',
+  NW: 'blue',       // North of Park / Beaches / Park
+  BEACHES: 'grey',
+  TI: 'orange',     // Treasure Island: Top to Pasadena
+  SW: 'brown',      // Pasadena to T.Y.
+  NE: 'pink',       // Gandy to Crisp
+  SE: 'purple',     // Crisp to Laguna
+  MAXI: 'green',    // Gulfport / Maximo
 };

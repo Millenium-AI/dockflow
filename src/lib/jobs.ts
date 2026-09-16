@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Job, JobPriority, JobStatus } from '../data';
+import type { Job, JobPriority, JobStatus, JobType } from '../data';
 
 const TABLE = 'dockflow_jobs';
 
@@ -13,6 +13,7 @@ interface Row {
   scheduled_date: string | null;
   assigned_to: string | null;
   priority: JobPriority | null;
+  job_type: JobType | null;
   sort_order: number | null;
 }
 
@@ -26,6 +27,7 @@ const fromRow = (r: Row): Job => ({
   scheduledDate: r.scheduled_date ?? '',
   assignedTo: r.assigned_to ?? '',
   priority: r.priority ?? 'normal',
+  jobType: r.job_type ?? 'install',
   sortOrder: r.sort_order ?? undefined,
 });
 
@@ -39,6 +41,7 @@ const toRow = (j: Job) => ({
   scheduled_date: j.scheduledDate || null,
   assigned_to: j.assignedTo || null,
   priority: j.priority || 'normal',
+  job_type: j.jobType || 'install',
   sort_order: typeof j.sortOrder === 'number' ? j.sortOrder : null,
 });
 
