@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DndContext, DragOverlay, PointerSensor, closestCorners, useDroppable, useSensor, useSensors,
+  type DragEndEvent, type DragOverEvent, type DragStartEvent,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   ChevronDown, ChevronUp, Eye, EyeOff, Minus, Plus, Search, Settings, Trash2, WifiOff, X,
 } from 'lucide-react';
@@ -30,11 +36,13 @@ export default function App() {
   const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  // Drag state for free-position job reordering.
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ status: JobStatus; index: number } | null>(null);
+  // dnd-kit: id of the job card currently being dragged, if any.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  // A short movement threshold before a drag "activates" — this is what lets
+  // a plain click still open the edit form instead of every click starting a drag.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const busy = showForm || showSettings || showAreaSettings || confirmDelete !== null || draggingId !== null;
+  const busy = showForm || showSettings || showAreaSettings || confirmDelete !== null || activeId !== null;
   const busyRef = useRef(busy);
   busyRef.current = busy;
 
@@ -124,23 +132,74 @@ export default function App() {
     );
   };
 
-  /** Drops job `jobId` into `destStatus` at position `targetIndex` among that column's other jobs. */
-  const handleReorder = (jobId: string, destStatus: JobStatus, targetIndex: number) => {
-    const moving = jobs.find((j) => j.id === jobId);
-    if (!moving) return;
-    const destItems = jobs.filter((j) => j.status === destStatus && j.id !== jobId);
-    const clamped = Math.max(0, Math.min(targetIndex, destItems.length));
-    const newDest = [...destItems];
-    newDest.splice(clamped, 0, { ...moving, status: destStatus });
-    const orderedIds = newDest.map((j) => j.id);
+  /** Resolves a dnd-kit droppable/sortable id to the column it belongs to — either a column itself (dropped on an empty column) or the status of the job with that id. */
+  const findContainer = (id: string): JobStatus | undefined => {
+    if (columnDefaults.some((c) => c.id === id)) return id as JobStatus;
+    return jobs.find((j) => j.id === id)?.status;
+  };
 
-    commit(
-      (cur) => {
-        const others = cur.filter((j) => j.status !== destStatus && j.id !== jobId);
-        return [...others, ...newDest];
-      },
-      () => reorderColumn(destStatus, orderedIds)
-    );
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  /** Live-moves the dragged card into the column it's currently hovering, so the board reflows as you drag. Only touches state — nothing is persisted here. */
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    if (activeId === overId) return;
+
+    const activeContainer = findContainer(activeId);
+    const overContainer = findContainer(overId);
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+
+    setJobs((prev) => {
+      const activeJob = prev.find((j) => j.id === activeId);
+      if (!activeJob) return prev;
+
+      const overItems = prev.filter((j) => j.status === overContainer);
+      const overIndex = overItems.findIndex((j) => j.id === overId);
+      const insertAt = overIndex >= 0 ? overIndex : overItems.length;
+
+      const moved = { ...activeJob, status: overContainer };
+      const newOverItems = [...overItems];
+      newOverItems.splice(insertAt, 0, moved);
+
+      const rest = prev.filter((j) => j.id !== activeId && j.status !== overContainer);
+      return [...rest, ...newOverItems];
+    });
+  };
+
+  /** Finalizes the drop: settles the dragged card's position within its final column and persists that column's order (and the card's new status/sort_order) to the database. */
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    const container = findContainer(overId) ?? findContainer(activeId);
+    if (!container) return;
+
+    const containerItems = jobs.filter((j) => j.status === container);
+    const activeIndex = containerItems.findIndex((j) => j.id === activeId);
+    const overIndex = containerItems.findIndex((j) => j.id === overId);
+
+    let reordered = containerItems;
+    if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+      reordered = arrayMove(containerItems, activeIndex, overIndex);
+      const others = jobs.filter((j) => j.status !== container);
+      setJobs([...others, ...reordered]);
+    }
+
+    reorderColumn(
+      container,
+      reordered.map((j) => j.id)
+    ).catch(() => {
+      setOffline(true);
+      refresh();
+    });
   };
 
   const toggleVisible = (id: JobStatus) =>
@@ -210,6 +269,9 @@ export default function App() {
     setShowForm(true);
   };
 
+  const activeJob = activeId ? jobs.find((j) => j.id === activeId) ?? null : null;
+  const activeCompact = activeJob ? visibleColumns.find((c) => c.id === activeJob.status)?.compact : false;
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f5f6f3] text-[#232826]">
       <header className="flex items-center justify-between gap-4 border-b border-[#e2e6e1] px-5 py-3">
@@ -266,22 +328,32 @@ export default function App() {
         ) : visibleColumns.length === 0 ? (
           <p className="text-sm text-[#9aa29c]">Every column is hidden. Open Columns to bring one back.</p>
         ) : (
-          <div className="grid h-full gap-3" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridAutoRows: 'minmax(0, 1fr)' }}>
-            {visibleColumns.map((col) => (
-              <BoardColumn
-                key={col.id}
-                col={col}
-                jobs={byStatus[col.id] ?? []}
-                draggingId={draggingId}
-                setDraggingId={setDraggingId}
-                dropTarget={dropTarget}
-                setDropTarget={setDropTarget}
-                onReorder={handleReorder}
-                onEdit={openEdit}
-                areaColors={areaColors}
-              />
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="grid h-full gap-3" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridAutoRows: 'minmax(0, 1fr)' }}>
+              {visibleColumns.map((col) => (
+                <BoardColumn
+                  key={col.id}
+                  col={col}
+                  jobs={byStatus[col.id] ?? []}
+                  onEdit={openEdit}
+                  areaColors={areaColors}
+                />
+              ))}
+            </div>
+            <DragOverlay>
+              {activeJob ? (
+                <div className="rotate-2 shadow-xl">
+                  <JobCardView job={activeJob} areaColor={areaColors[activeJob.area ?? ''] ?? 'none'} compact={activeCompact} />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </main>
 
@@ -445,164 +517,65 @@ function SettingsPanel({
 function BoardColumn({
   col,
   jobs,
-  draggingId,
-  setDraggingId,
-  dropTarget,
-  setDropTarget,
-  onReorder,
   onEdit,
   areaColors,
 }: {
   col: RenderColumn;
   jobs: Job[];
-  draggingId: string | null;
-  setDraggingId: (id: string | null) => void;
-  dropTarget: { status: JobStatus; index: number } | null;
-  setDropTarget: (t: { status: JobStatus; index: number } | null) => void;
-  onReorder: (jobId: string, destStatus: JobStatus, index: number) => void;
   onEdit: (job: Job) => void;
   areaColors: AreaColorSettings;
 }) {
-  const displayJobs = draggingId ? jobs.filter((j) => j.id !== draggingId) : jobs;
-  const isDropHere = dropTarget?.status === col.id;
-
-  const finishDrop = (index: number) => {
-    if (draggingId) onReorder(draggingId, col.id, index);
-    setDraggingId(null);
-    setDropTarget(null);
-  };
+  // Registers this column as a drop target in its own right, so dropping on
+  // an empty (or mostly-empty) column still works even with no cards to land on.
+  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  const jobIds = useMemo(() => jobs.map((j) => j.id), [jobs]);
 
   return (
     <div
       style={{ gridColumn: `span ${col.span} / span ${col.span}` }}
       className={`flex min-h-0 flex-col rounded-xl border bg-[#fafbfa] transition ${
-        isDropHere ? 'border-[#5b8a9e] bg-[#edf2f4]' : 'border-[#e2e6e1]'
+        isOver ? 'border-[#5b8a9e] bg-[#edf2f4]' : 'border-[#e2e6e1]'
       }`}
-      onDragOver={(e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        if (!isDropHere || dropTarget?.index !== displayJobs.length) {
-          setDropTarget({ status: col.id, index: displayJobs.length });
-        }
-      }}
-      onDragLeave={(e: React.DragEvent<HTMLDivElement>) => {
-        if (e.currentTarget === e.target) setDropTarget(null);
-      }}
-      onDrop={(e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        finishDrop(displayJobs.length);
-      }}
     >
       <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-2.5">
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
         <h2 className="text-base font-bold tracking-tight text-[#3a423d]">{col.label}</h2>
         <span className="text-sm font-semibold text-[#9aa29c]">{jobs.length}</span>
       </div>
-      <div className={`min-h-0 flex-1 overflow-y-auto px-2 pb-2 ${col.compact ? 'flex flex-wrap items-start gap-2' : 'space-y-2'}`}>
-        {displayJobs.length === 0 && !isDropHere && (
-          <div className="w-full rounded-lg border border-dashed border-[#d8ddd7] py-5 text-center">
-            <p className="text-sm text-[#a8b0aa]">Nothing here</p>
-          </div>
-        )}
-        {displayJobs.map((job, i) => (
-          <div key={job.id} className={col.compact ? 'contents' : undefined}>
-            {isDropHere && dropTarget?.index === i && <DropLine compact={col.compact} />}
+      <div
+        ref={setNodeRef}
+        className={`min-h-0 flex-1 overflow-y-auto px-2 pb-2 ${col.compact ? 'flex flex-wrap items-start gap-2' : 'space-y-2'}`}
+      >
+        <SortableContext items={jobIds} strategy={col.compact ? rectSortingStrategy : verticalListSortingStrategy}>
+          {jobs.length === 0 && (
+            <div className="w-full rounded-lg border border-dashed border-[#d8ddd7] py-5 text-center">
+              <p className="text-sm text-[#a8b0aa]">Nothing here</p>
+            </div>
+          )}
+          {jobs.map((job) => (
             <JobCard
+              key={job.id}
               job={job}
               onEdit={onEdit}
               compact={col.compact}
               areaColor={areaColors[job.area ?? ''] ?? 'none'}
-              onDragStartCard={() => setDraggingId(job.id)}
-              onDragEndCard={() => {
-                setDraggingId(null);
-                setDropTarget(null);
-              }}
-              onDragOverCard={(e: React.DragEvent<HTMLDivElement>) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const rect = e.currentTarget.getBoundingClientRect();
-                const before = col.compact
-                  ? e.clientX - rect.left < rect.width / 2
-                  : e.clientY - rect.top < rect.height / 2;
-                const idx = before ? i : i + 1;
-                if (!isDropHere || dropTarget?.index !== idx) setDropTarget({ status: col.id, index: idx });
-              }}
-              onDropCard={(e: React.DragEvent<HTMLDivElement>) => {
-                e.preventDefault();
-                e.stopPropagation();
-                finishDrop(dropTarget?.status === col.id ? dropTarget.index : i);
-              }}
             />
-          </div>
-        ))}
-        {isDropHere && dropTarget?.index === displayJobs.length && <DropLine compact={col.compact} />}
+          ))}
+        </SortableContext>
       </div>
     </div>
   );
 }
 
-function DropLine({ compact }: { compact?: boolean }) {
-  return compact ? (
-    <div className="my-1 h-9 w-1 shrink-0 rounded-full bg-[#5b8a9e]" />
-  ) : (
-    <div className="h-1 rounded-full bg-[#5b8a9e]" />
-  );
-}
-
-function JobCard({
-  job,
-  onEdit,
-  compact,
-  areaColor,
-  onDragStartCard,
-  onDragEndCard,
-  onDragOverCard,
-  onDropCard,
-}: {
-  job: Job;
-  onEdit: (job: Job) => void;
-  compact?: boolean;
-  areaColor: AreaColorKey;
-  onDragStartCard: () => void;
-  onDragEndCard: () => void;
-  onDragOverCard: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDropCard: (e: React.DragEvent<HTMLDivElement>) => void;
-}) {
+/** Pure visual rendering of a job card — shared by the sortable card and the drag overlay preview. */
+function JobCardView({ job, areaColor, compact }: { job: Job; areaColor: AreaColorKey; compact?: boolean }) {
   const areaHex = areaColorTokens[areaColor].hex;
   const isNone = areaColor === 'none';
-
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', job.id);
-    const dragImage = new Image();
-    e.dataTransfer.setDragImage(dragImage, 0, 0);
-    onDragStartCard();
-  };
-
-  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    onDragEndCard();
-  };
-
   return (
     <div
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragOver={onDragOverCard}
-      onDrop={onDropCard}
-      onMouseDown={(e) => {
-        if (e.button !== 0) return;
-        const target = e.target as HTMLElement;
-        if (target.closest('button, input')) return;
-      }}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button, input')) return;
-        onEdit(job);
-      }}
-      className={`relative rounded-lg border transition hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] select-none ${
-        compact ? 'w-44' : ''
-      } ${isNone ? 'border-[#e4e8e3] bg-white' : 'border-transparent'} cursor-grab active:cursor-grabbing`}
+      className={`relative rounded-lg border select-none ${compact ? 'w-44' : ''} ${
+        isNone ? 'border-[#e4e8e3] bg-white' : 'border-transparent'
+      }`}
       style={!isNone ? { backgroundColor: areaHex, borderColor: areaHex } : undefined}
     >
       <div className={`px-3 py-2 pl-3.5 ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
@@ -622,6 +595,42 @@ function JobCard({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function JobCard({
+  job,
+  onEdit,
+  compact,
+  areaColor,
+}: {
+  job: Job;
+  onEdit: (job: Job) => void;
+  compact?: boolean;
+  areaColor: AreaColorKey;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition ?? undefined,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => onEdit(job)}
+      // touch-none stops the browser from treating a drag as a page scroll on touch devices.
+      className={`touch-none cursor-grab rounded-lg transition-shadow hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] active:cursor-grabbing ${
+        compact ? 'w-44' : ''
+      }`}
+    >
+      <JobCardView job={job} areaColor={areaColor} compact={compact} />
     </div>
   );
 }
@@ -740,6 +749,7 @@ function AreaColorSettingsPanel({
   areaColors,
   onClose,
   onSetColor,
+  onDeleteColor,
 }: {
   areaColors: AreaColorSettings;
   onClose: () => void;
