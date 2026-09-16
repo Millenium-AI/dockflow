@@ -60,7 +60,7 @@ export const columnDefaults: ColumnDefaults[] = [
   { id: 'ready',           label: 'Ready',                  accent: '#5B6E65' },
   { id: 'waiting-permits', label: 'Waiting / Permits',      accent: '#B27D6A' },
   { id: 'hold',            label: 'Hold / Needs Attention', accent: '#8B9291' },
-  { id: 'complete',        label: 'Complete',               accent: '#A8B0AC', compact: true },
+  { id: 'complete',        label: 'Complete',               accent: '#A8B0AC' },
 ];
 
 export type ViewTab = 'barges' | 'other';

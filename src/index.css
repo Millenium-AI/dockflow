@@ -9,10 +9,12 @@
     1080p monitor  -> ~20px base
     laptop screen  -> ~15px base
     4K monitor     -> ~24px base (capped)
-  If the wall monitor is still hard to read, raise the 1.05vw. If things
-  overflow, lower it. Nothing else needs to change.
+  The --font-scale variable (0.85–1.3) lets users adjust on top of viewport scaling.
 */
-html { font-size: clamp(15px, 1.05vw, 24px); }
+html {
+  --font-scale: 1;
+  font-size: clamp(15px, calc(1.05vw * var(--font-scale)), 24px);
+}
 
 :root {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

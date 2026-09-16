@@ -123,6 +123,10 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>('barges');
+  const [fontScale, setFontScale] = useState(() => {
+    const saved = localStorage.getItem('dockflow_font_scale');
+    return saved ? parseFloat(saved) : 1;
+  });
 
   // dnd-kit: id of the job card currently being dragged, if any.
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -155,6 +159,11 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
       console.error('Failed to load area colors:', err);
     }
   }, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-scale', fontScale.toString());
+    localStorage.setItem('dockflow_font_scale', fontScale.toString());
+  }, [fontScale]);
 
   useEffect(() => {
     refresh();
@@ -358,6 +367,20 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           )}
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-[#9aa29c]">Size</span>
+            <input
+              type="range"
+              min="0.7"
+              max="1.5"
+              step="0.05"
+              value={fontScale}
+              onChange={(e) => setFontScale(parseFloat(e.target.value))}
+              className="h-1.5 w-24 cursor-pointer accent-[#6B1919]"
+              aria-label="Adjust text size"
+            />
+            <span className="text-xs font-semibold text-[#9aa29c] w-6 text-right">{Math.round(fontScale * 100)}%</span>
+          </div>
           <div className="relative">
             <Search size="1em" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9aa29c]" />
             <input
@@ -429,19 +452,19 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             ) : (
               <div className="flex h-full w-full gap-3">
                 {/* Left: Ready (50%) */}
-                <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="min-h-0 w-1/2 overflow-hidden">
                   <BoardColumn col={visibleColumns[0]} jobs={byStatus[visibleColumns[0].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
                 </div>
                 {/* Right: Waiting (top 50%), Hold|Complete (bottom 50%) */}
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-                  <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="flex min-h-0 w-1/2 flex-col gap-3 overflow-hidden">
+                  <div className="min-h-0 flex-1 w-full overflow-hidden">
                     <BoardColumn col={visibleColumns[1]} jobs={byStatus[visibleColumns[1].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
                   </div>
-                  <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
-                    <div className="min-h-0 flex-1 overflow-hidden">
+                  <div className="flex min-h-0 flex-1 w-full gap-3 overflow-hidden">
+                    <div className="min-h-0 flex-1 w-full overflow-hidden">
                       <BoardColumn col={visibleColumns[2]} jobs={byStatus[visibleColumns[2].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
                     </div>
-                    <div className="min-h-0 flex-1 overflow-hidden">
+                    <div className="min-h-0 flex-1 w-full overflow-hidden">
                       <BoardColumn col={visibleColumns[3]} jobs={byStatus[visibleColumns[3].id] ?? []} onEdit={openEdit} areaColors={areaColors} />
                     </div>
                   </div>
@@ -535,10 +558,15 @@ function BoardColumn({
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
-      <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-2.5">
-        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
-        <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
-        <span className="text-sm font-semibold text-[#9aa29c] shrink-0">{jobs.length}</span>
+      <div className="flex shrink-0 items-center justify-between px-3 pb-2 pt-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
+          <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-xs font-semibold text-[#9aa29c]">Total</span>
+          <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
+        </div>
       </div>
       <div
         ref={setNodeRef}
