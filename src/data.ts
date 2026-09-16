@@ -43,11 +43,8 @@ export const areaColorTokens: Record<AreaColorKey, { label: string; hex: string 
 /**
  * Fixed presentation for each column: what it's called, its dot color, and
  * whether its cards wrap into a chip row instead of a list. This never
- * changes at runtime — columns can't be renamed, added or removed.
- *
- * What CAN change at runtime (visibility, width, order) lives in the
- * `dockflow_board_settings` table instead, via ColumnLayout below, because
- * that's shared across every screen looking at the board.
+ * changes at runtime — columns can't be renamed, added, removed, resized,
+ * or moved.
  */
 export interface ColumnDefaults {
   id: JobStatus;
@@ -66,23 +63,41 @@ export const columnDefaults: ColumnDefaults[] = [
   { id: 'complete',        label: 'Complete',               accent: '#A8B0AC', compact: true },
 ];
 
-/** Per-column width (out of 12), display order, and show/hide. Editable from the board's settings panel. */
-export interface ColumnLayout {
-  id: JobStatus;
-  span: number;
-  position: number;
-  visible: boolean;
+export type ViewTab = 'barges' | 'other';
+
+interface TabGridSpec {
+  cols: number;
+  rows: number;
+  items: { id: JobStatus; gridColumn: string; gridRow: string }[];
 }
 
-export const defaultLayout: ColumnLayout[] = [
-  { id: 'barge-1',         span: 4,  position: 0, visible: true },
-  { id: 'barge-2',         span: 4,  position: 1, visible: true },
-  { id: 'barge-3',         span: 4,  position: 2, visible: true },
-  { id: 'ready',           span: 6,  position: 3, visible: true },
-  { id: 'waiting-permits', span: 3,  position: 4, visible: true },
-  { id: 'hold',            span: 3,  position: 5, visible: true },
-  { id: 'complete',        span: 12, position: 6, visible: true },
-];
+/**
+ * Hard-coded grid placement per tab — no drag/resize, this is the whole
+ * layout. Barges: three equal columns. Status: Ready takes the left half
+ * full-height; Waiting/Permits takes the right half's top row; Hold and
+ * Complete split the right half's bottom row.
+ */
+export const tabGridSpecs: Record<ViewTab, TabGridSpec> = {
+  barges: {
+    cols: 3,
+    rows: 1,
+    items: [
+      { id: 'barge-1', gridColumn: '1 / span 1', gridRow: '1 / span 1' },
+      { id: 'barge-2', gridColumn: '2 / span 1', gridRow: '1 / span 1' },
+      { id: 'barge-3', gridColumn: '3 / span 1', gridRow: '1 / span 1' },
+    ],
+  },
+  other: {
+    cols: 4,
+    rows: 2,
+    items: [
+      { id: 'ready',           gridColumn: '1 / span 2', gridRow: '1 / span 2' },
+      { id: 'waiting-permits', gridColumn: '3 / span 2', gridRow: '1 / span 1' },
+      { id: 'hold',            gridColumn: '3 / span 1', gridRow: '2 / span 1' },
+      { id: 'complete',        gridColumn: '4 / span 1', gridRow: '2 / span 1' },
+    ],
+  },
+};
 
 export interface AreaColorSettings {
   [areaCode: string]: AreaColorKey;

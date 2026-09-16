@@ -1,24 +1,15 @@
 import { supabase } from './supabase';
-import { defaultLayout, defaultAreaColors, type ColumnLayout, type AreaColorSettings } from '../data';
+import { defaultAreaColors, type AreaColorSettings } from '../data';
 
 const TABLE = 'dockflow_board_settings';
 
-/** Reads the shared column layout. On the very first run (no row yet), seeds it with the defaults. */
-export async function fetchLayout(): Promise<ColumnLayout[]> {
-  const { data, error } = await supabase.from(TABLE).select('columns').eq('id', 1).maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    const { error: insertError } = await supabase.from(TABLE).insert({ id: 1, columns: defaultLayout });
-    if (insertError) throw insertError;
-    return defaultLayout;
-  }
-  return data.columns as ColumnLayout[];
-}
-
-export async function saveLayout(columns: ColumnLayout[]): Promise<void> {
-  const { error } = await supabase.from(TABLE).upsert({ id: 1, columns });
-  if (error) throw error;
-}
+/**
+ * The board's column layout is hard-coded (see `tabGridSpecs` in data.ts),
+ * not user-editable, so there's nothing to read back for it. `columns` is
+ * a legacy NOT NULL field on this row from when layout was draggable —
+ * every write still has to carry a value for it.
+ */
+const LEGACY_COLUMNS_PLACEHOLDER: never[] = [];
 
 /** Reads area color settings. Seeds with defaults on first run. */
 export async function fetchAreaColors(): Promise<AreaColorSettings> {
@@ -28,7 +19,7 @@ export async function fetchAreaColors(): Promise<AreaColorSettings> {
   if (!data) {
     const { error: insertError } = await supabase.from(TABLE).insert({
       id: 1,
-      columns: defaultLayout,
+      columns: LEGACY_COLUMNS_PLACEHOLDER,
       area_colors: defaultAreaColors
     });
     if (insertError) throw insertError;
@@ -38,15 +29,7 @@ export async function fetchAreaColors(): Promise<AreaColorSettings> {
   return (data.area_colors ?? defaultAreaColors) as AreaColorSettings;
 }
 
-/**
- * Upserts only area_colors. Postgres validates NOT NULL columns against the
- * insert tuple before ON CONFLICT resolution runs, so a partial upsert like
- * `{ id, area_colors }` fails on `columns` even when a matching row already
- * exists. Read the current columns first so every upsert carries a
- * complete, valid row.
- */
 export async function saveAreaColors(areaColors: AreaColorSettings): Promise<void> {
-  const columns = await fetchLayout();
-  const { error } = await supabase.from(TABLE).upsert({ id: 1, columns, area_colors: areaColors });
+  const { error } = await supabase.from(TABLE).upsert({ id: 1, columns: LEGACY_COLUMNS_PLACEHOLDER, area_colors: areaColors });
   if (error) throw error;
 }

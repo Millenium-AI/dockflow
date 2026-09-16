@@ -5,24 +5,22 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import GridLayout, { type Layout } from 'react-grid-layout';
+import { LogOut, Plus, Search, Settings, Trash2, Wrench, WifiOff, X } from 'lucide-react';
 import {
-  ChevronDown, ChevronUp, Eye, EyeOff, LogOut, Minus, Plus, Search, Settings, Trash2, Wrench, WifiOff, X,
-} from 'lucide-react';
-import {
-  areaColorTokens, columnDefaults, defaultLayout, jobTypeTokens, type AreaColorKey, type AreaColorSettings, type ColumnDefaults,
-  type ColumnLayout, type Job, type JobStatus, type JobType,
+  areaColorTokens, columnDefaults, jobTypeTokens, tabGridSpecs,
+  type AreaColorKey, type AreaColorSettings, type ColumnDefaults,
+  type Job, type JobStatus, type JobType, type ViewTab,
 } from './data';
 import { getSession, login, logout } from './lib/auth';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
-import { fetchAreaColors, fetchLayout, saveAreaColors, saveLayout } from './lib/settings';
+import { fetchAreaColors, saveAreaColors } from './lib/settings';
 
 const REFRESH_MS = 20_000;
 const fieldClass =
   'w-full rounded-lg border border-[#e8dcc8] bg-white px-3 py-2 text-sm text-[#2c3230] outline-none transition focus:border-[#6B1919] focus:ring-2 focus:ring-[#6B1919]/20';
 const labelClass = 'text-sm font-semibold text-[#8a928c]';
 
-type RenderColumn = ColumnDefaults & ColumnLayout;
+type RenderColumn = ColumnDefaults;
 
 export default function App() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(() => getSession());
@@ -115,7 +113,6 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
 
 function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [layout, setLayout] = useState<ColumnLayout[]>(defaultLayout);
   const [areaColors, setAreaColors] = useState<AreaColorSettings>({});
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
@@ -125,7 +122,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [showForm, setShowForm] = useState(false);
   const [showAreaSettings, setShowAreaSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [viewTab, setViewTab] = useState<'barges' | 'other'>('barges');
+  const [viewTab, setViewTab] = useState<ViewTab>('barges');
 
   // dnd-kit: id of the job card currently being dragged, if any.
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -150,15 +147,8 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
       setLoading(false);
     }
 
-    // Layout and area colors are secondary settings — a failure here (e.g. a
-    // missing column before a migration is run) shouldn't take the whole
-    // board offline or discard jobs that loaded fine.
-    try {
-      setLayout(await fetchLayout());
-    } catch (err) {
-      console.error('Failed to load column layout:', err);
-    }
-
+    // Area colors are a secondary setting — a failure here shouldn't take
+    // the whole board offline or discard jobs that loaded fine.
     try {
       setAreaColors(await fetchAreaColors());
     } catch (err) {
@@ -180,17 +170,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     setJobs(optimistic);
     try {
       await write();
-      setOffline(false);
-    } catch {
-      setOffline(true);
-      refresh();
-    }
-  };
-
-  const commitLayout = async (next: ColumnLayout[]) => {
-    setLayout(next);
-    try {
-      await saveLayout(next);
       setOffline(false);
     } catch {
       setOffline(true);
@@ -293,20 +272,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     });
   };
 
-  const toggleVisible = (id: JobStatus) =>
-    commitLayout(layout.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)));
-
-  const handleGridLayoutChange = (newLayout: Layout[]) => {
-    const updated = layout.map((col) => {
-      const gridItem = newLayout.find((item) => item.i === col.id);
-      if (!gridItem) return col;
-      return { ...col, span: gridItem.w };
-    });
-    // Recalculate positions based on the new order
-    const withPositions = updated.map((col, idx) => ({ ...col, position: idx }));
-    commitLayout(withPositions);
-  };
-
   const setAreaColor = (areaCode: string, color: AreaColorKey) => {
     const updated = { ...areaColors, [areaCode]: color };
     setAreaColors(updated);
@@ -340,20 +305,10 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
     return groups;
   }, [jobs, search]);
 
+  const gridSpec = tabGridSpecs[viewTab];
   const visibleColumns: RenderColumn[] = useMemo(
-    () => {
-      const allVisible = layout
-        .filter((c) => c.visible)
-        .sort((a, b) => a.position - b.position)
-        .map((c) => ({ ...columnDefaults.find((d) => d.id === c.id)!, ...c }));
-
-      if (viewTab === 'barges') {
-        return allVisible.filter((c) => c.id.startsWith('barge-'));
-      } else {
-        return allVisible.filter((c) => !c.id.startsWith('barge-'));
-      }
-    },
-    [layout, viewTab]
+    () => gridSpec.items.map((item) => columnDefaults.find((d) => d.id === item.id)!),
+    [gridSpec]
   );
 
   const openEdit = (job: Job) => {
@@ -363,19 +318,6 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
 
   const activeJob = activeId ? jobs.find((j) => j.id === activeId) ?? null : null;
   const activeCompact = activeJob ? visibleColumns.find((c) => c.id === activeJob.status)?.compact : false;
-  const mainRef = useRef<HTMLDivElement>(null);
-  const [gridWidth, setGridWidth] = useState(window.innerWidth - 40);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (mainRef.current) {
-        setGridWidth(mainRef.current.offsetWidth);
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#faf8f3] text-[#232826]">
@@ -454,11 +396,9 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
         </div>
       </header>
 
-      <main ref={mainRef} className="min-h-0 flex-1 p-4">
+      <main className="min-h-0 flex-1 p-4">
         {loading ? (
           <p className="text-sm text-[#9aa29c]">Loading the board…</p>
-        ) : visibleColumns.length === 0 ? (
-          <p className="text-sm text-[#9aa29c]">Every column is hidden. Open Columns to bring one back.</p>
         ) : (
           <DndContext
             sensors={sensors}
@@ -467,42 +407,19 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <GridLayout
-              className="h-full w-full"
-              layout={visibleColumns.map((col, idx) => {
-                const x = visibleColumns.slice(0, idx).reduce((sum, c) => sum + c.span, 0);
-                return {
-                  x,
-                  y: 0,
-                  w: col.span,
-                  h: 1,
-                  i: col.id,
-                };
-              })}
-              cols={12}
-              rowHeight={Math.max(400, window.innerHeight - 220)}
-              width={Math.max(gridWidth - 20, 100)}
-              onLayoutChange={handleGridLayoutChange}
-              isDraggable={true}
-              isResizable={true}
-              compactType="vertical"
-              preventCollision={false}
-              useCSSTransforms={true}
-              containerPadding={[0, 0]}
-              margin={[0, 12]}
+            <div
+              className="grid h-full gap-3"
+              style={{
+                gridTemplateColumns: `repeat(${gridSpec.cols}, 1fr)`,
+                gridTemplateRows: `repeat(${gridSpec.rows}, 1fr)`,
+              }}
             >
-              {visibleColumns.map((col) => (
-                <div key={col.id}>
-                  <BoardColumn
-                    col={col}
-                    jobs={byStatus[col.id] ?? []}
-                    onEdit={openEdit}
-                    areaColors={areaColors}
-                    onToggleVisible={toggleVisible}
-                  />
+              {visibleColumns.map((col, i) => (
+                <div key={col.id} style={{ gridColumn: gridSpec.items[i].gridColumn, gridRow: gridSpec.items[i].gridRow }}>
+                  <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} />
                 </div>
               ))}
-            </GridLayout>
+            </div>
             <DragOverlay>
               {activeJob ? (
                 <div className="rotate-2 shadow-xl">
@@ -573,13 +490,11 @@ function BoardColumn({
   jobs,
   onEdit,
   areaColors,
-  onToggleVisible,
 }: {
   col: RenderColumn;
   jobs: Job[];
   onEdit: (job: Job) => void;
   areaColors: AreaColorSettings;
-  onToggleVisible: (id: JobStatus) => void;
 }) {
   // Registers this column as a drop target in its own right, so dropping on
   // an empty (or mostly-empty) column still works even with no cards to land on.
@@ -592,20 +507,10 @@ function BoardColumn({
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2 pt-2.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
-          <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
-          <span className="text-sm font-semibold text-[#9aa29c] shrink-0">{jobs.length}</span>
-        </div>
-        <button
-          onClick={() => onToggleVisible(col.id)}
-          className="shrink-0 rounded p-1.5 text-[#6a726c] hover:bg-[#f5f1e8]"
-          aria-label={`Toggle visibility`}
-          title={`Hide column`}
-        >
-          <Eye size="1em" />
-        </button>
+      <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-2.5">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
+        <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
+        <span className="text-sm font-semibold text-[#9aa29c] shrink-0">{jobs.length}</span>
       </div>
       <div
         ref={setNodeRef}

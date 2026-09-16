@@ -2,48 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import 'react-grid-layout/css/styles.css';
-@import 'react-resizable/css/styles.css';
-
-.react-grid-layout {
-  position: relative;
-  transition: height 200ms ease;
-  width: 100%;
-  overflow-x: hidden;
-}
-
-.react-grid-item {
-  touch-action: none;
-  overflow: hidden;
-}
-
-.react-grid-item img {
-  pointer-events: none;
-  user-select: none;
-}
-
-.react-grid-item.react-grid-placeholder {
-  background: #bf9f21;
-  opacity: 0.2;
-  border-radius: 4px;
-  z-index: 2;
-}
-
-.react-grid-item > .react-resizable-handle {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  background: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBzdGFuZGFsb25lPSJubyI/Pg08IS0tIEdlbmVyYXRvcjogQWRvYmUgRmlyZXdvcmtzIENTNiwgRXhwb3J0IFNWRyBFeHRlbnNpb24gYnkgQWFyb24gQmVhbGwgKGhkY2FzcCkgYW5kIEplcmVteSBEYXJsaW5nICpDaGlwIFN3b3JlbigpY2hyaXM0IDsgLS0+DTwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DTxzdmcgaWQ9IlVudGl0bGVkIFBhZ2UlMjAxIiB2aWV3Qm94PSIwIDAgNiA2IiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjojZmZmZmZmMDAiIHZlcnNpb249IjEuMSINCXhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHhtbDpzcGFjZT0icHJlc2VydmUiDQl4PSIwcHgiIHk9IjBweCIgd2lkdGg9IjZweCIgaGVpZ2h0PSI2cHgiDT4NCTxnIG9wYWNpdHk9IjAuMzAyIj4NCQk8cGF0aCBkPSJNIDYgNiBMIDAgNiBMIDAgNC4yIEwgNCA0LjIgTCA0LjIgNC4yIEwgNC4yIDAgTCA2IDAgTCA2IDYgTCA2IDYgWiIgZmlsbD0iIzAwMDAwMCIvPg0JPC9nPg08L3N2Zz4=') no-repeat;
-  background-position: bottom right;
-  padding: 0 8px 8px 0;
-  background-repeat: no-repeat;
-  background-origin: content-box;
-  box-sizing: border-box;
-  cursor: se-resize;
-  right: 0;
-  bottom: 0;
-}
-
 /*
   ONE KNOB FOR THE WHOLE BOARD.
   Every size in the app is in rem, so this single line scales all text,
