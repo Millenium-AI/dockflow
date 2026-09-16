@@ -151,14 +151,24 @@ export default function App() {
   const setAreaColor = (areaCode: string, color: AreaColorKey) => {
     const updated = { ...areaColors, [areaCode]: color };
     setAreaColors(updated);
-    saveAreaColors(updated).catch(() => setOffline(true));
+    saveAreaColors(updated)
+      .then(() => setOffline(false))
+      .catch((err) => {
+        console.error('Failed to save area colors:', err);
+        setOffline(true);
+      });
   };
 
   const deleteAreaColor = (areaCode: string) => {
     const updated = { ...areaColors };
     delete updated[areaCode];
     setAreaColors(updated);
-    saveAreaColors(updated).catch(() => setOffline(true));
+    saveAreaColors(updated)
+      .then(() => setOffline(false))
+      .catch((err) => {
+        console.error('Failed to delete area color:', err);
+        setOffline(true);
+      });
   };
 
   const byStatus = useMemo(() => {
