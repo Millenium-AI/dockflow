@@ -81,10 +81,25 @@ values
 --
 -- area_colors: maps area codes to colors, supports edit/delete operations
 -- area_opacity: maps area codes to opacity values (0.0 to 1.0)
+--
+-- `columns` has a DEFAULT (matching defaultLayout in src/data.ts) even
+-- though the app always supplies it on insert. Without one, a partial
+-- upsert that only touches area_colors/area_opacity (e.g. saveAreaColors)
+-- fails with a NOT NULL violation on `columns` — Postgres validates NOT
+-- NULL constraints against the INSERT tuple before ON CONFLICT resolution
+-- runs, even when a matching row already exists.
 -- ---------------------------------------------------------------------------
 create table if not exists public.dockflow_board_settings (
   id           int primary key default 1 check (id = 1),
-  columns      jsonb not null,
+  columns      jsonb not null default '[
+                 {"id":"barge-1","span":4,"position":0,"visible":true},
+                 {"id":"barge-2","span":4,"position":1,"visible":true},
+                 {"id":"barge-3","span":4,"position":2,"visible":true},
+                 {"id":"ready","span":6,"position":3,"visible":true},
+                 {"id":"waiting-permits","span":3,"position":4,"visible":true},
+                 {"id":"hold","span":3,"position":5,"visible":true},
+                 {"id":"complete","span":12,"position":6,"visible":true}
+               ]'::jsonb,
   area_colors  jsonb default '{"TI":"red","NE":"blue","MB":"green"}'::jsonb,
   area_opacity jsonb default '{"TI":1.0,"NE":1.0,"MB":1.0}'::jsonb,
   updated_at   timestamptz not null default now()
@@ -108,3 +123,16 @@ create policy dockflow_board_settings_open on public.dockflow_board_settings
 alter table public.dockflow_jobs add column if not exists sort_order int;
 alter table public.dockflow_board_settings add column if not exists area_colors jsonb default '{"TI":"red","NE":"blue","MB":"green"}'::jsonb;
 alter table public.dockflow_board_settings add column if not exists area_opacity jsonb default '{"TI":1.0,"NE":1.0,"MB":1.0}'::jsonb;
+
+-- Fixes "Adding a new area breaks the board": without this default, any
+-- upsert that omits `columns` (like saving just area_colors) fails a NOT
+-- NULL check even when a matching row already exists.
+alter table public.dockflow_board_settings alter column columns set default '[
+  {"id":"barge-1","span":4,"position":0,"visible":true},
+  {"id":"barge-2","span":4,"position":1,"visible":true},
+  {"id":"barge-3","span":4,"position":2,"visible":true},
+  {"id":"ready","span":6,"position":3,"visible":true},
+  {"id":"waiting-permits","span":3,"position":4,"visible":true},
+  {"id":"hold","span":3,"position":5,"visible":true},
+  {"id":"complete","span":12,"position":6,"visible":true}
+]'::jsonb;

@@ -38,7 +38,15 @@ export async function fetchAreaColors(): Promise<AreaColorSettings> {
   return (data.area_colors ?? defaultAreaColors) as AreaColorSettings;
 }
 
+/**
+ * Upserts only area_colors. Postgres validates NOT NULL columns against the
+ * insert tuple before ON CONFLICT resolution runs, so a partial upsert like
+ * `{ id, area_colors }` fails on `columns` even when a matching row already
+ * exists. Read the current columns first so every upsert carries a
+ * complete, valid row.
+ */
 export async function saveAreaColors(areaColors: AreaColorSettings): Promise<void> {
-  const { error } = await supabase.from(TABLE).upsert({ id: 1, area_colors: areaColors });
+  const columns = await fetchLayout();
+  const { error } = await supabase.from(TABLE).upsert({ id: 1, columns, area_colors: areaColors });
   if (error) throw error;
 }
