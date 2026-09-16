@@ -6,12 +6,13 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  ChevronDown, ChevronUp, Eye, EyeOff, Minus, Plus, Search, Settings, Trash2, Wrench, WifiOff, X,
+  ChevronDown, ChevronUp, Eye, EyeOff, LogOut, Minus, Plus, Search, Settings, Trash2, Wrench, WifiOff, X,
 } from 'lucide-react';
 import {
   areaColorTokens, columnDefaults, defaultLayout, jobTypeTokens, type AreaColorKey, type AreaColorSettings, type ColumnDefaults,
   type ColumnLayout, type Job, type JobStatus, type JobType,
 } from './data';
+import { getSession, login, logout } from './lib/auth';
 import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
 import { fetchAreaColors, fetchLayout, saveAreaColors, saveLayout } from './lib/settings';
 
@@ -23,6 +24,92 @@ const labelClass = 'text-sm font-semibold text-[#8a928c]';
 type RenderColumn = ColumnDefaults & ColumnLayout;
 
 export default function App() {
+  const [sessionEmail, setSessionEmail] = useState<string | null>(() => getSession());
+
+  if (!sessionEmail) {
+    return <LoginScreen onLoggedIn={setSessionEmail} />;
+  }
+
+  return (
+    <BoardApp
+      email={sessionEmail}
+      onLogout={() => {
+        logout();
+        setSessionEmail(null);
+      }}
+    />
+  );
+}
+
+function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      const ok = await login(email, password);
+      if (ok) {
+        onLoggedIn(email.trim().toLowerCase());
+      } else {
+        setError('Wrong email or password.');
+      }
+    } catch {
+      setError("Can't reach the database — try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-[#f5f6f3]">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm rounded-xl border border-[#e0e4de] bg-white p-6 shadow-xl"
+      >
+        <h1 className="text-lg font-bold text-[#232826]">Job Board</h1>
+        <p className="mt-1 text-sm text-[#8a928c]">Sign in to continue.</p>
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className={labelClass}>Email</label>
+            <input
+              className={`${fieldClass} mt-1`}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+              required
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Password</label>
+            <input
+              className={`${fieldClass} mt-1`}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+        {error && <p className="mt-3 text-sm font-medium text-[#b04a36]">{error}</p>}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="mt-4 w-full rounded-lg bg-[#2f5260] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#24414c] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [layout, setLayout] = useState<ColumnLayout[]>(defaultLayout);
   const [areaColors, setAreaColors] = useState<AreaColorSettings>({});
@@ -319,6 +406,17 @@ export default function App() {
           >
             <Plus size="1em" /> Add job
           </button>
+          <div className="ml-1 flex items-center gap-2 border-l border-[#e2e6e1] pl-3">
+            <span className="text-xs text-[#9aa29c]">{email}</span>
+            <button
+              onClick={onLogout}
+              className="rounded-lg p-1.5 text-[#8a928c] hover:bg-[#f0f3ef]"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut size="1em" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -379,6 +477,7 @@ export default function App() {
       {showForm && (
         <JobForm
           job={editing}
+          areaColors={areaColors}
           onClose={() => {
             setShowForm(false);
             setEditing(null);
@@ -646,11 +745,13 @@ function JobCard({
 
 function JobForm({
   job,
+  areaColors,
   onClose,
   onSave,
   onDelete,
 }: {
   job: Job | null;
+  areaColors: AreaColorSettings;
   onClose: () => void;
   onSave: (job: Job) => void;
   onDelete?: (id: string) => void;
@@ -659,6 +760,7 @@ function JobForm({
     job ?? { id: crypto.randomUUID(), customerName: '', status: 'ready', priority: 'normal' }
   );
   const set = <K extends keyof Job>(key: K, value: Job[K]) => setDraft((cur) => ({ ...cur, [key]: value }));
+  const knownAreas = Object.keys(areaColors).sort();
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
@@ -687,6 +789,28 @@ function JobForm({
             <div>
               <label className={labelClass}>Area or route</label>
               <input className={`${fieldClass} mt-1`} value={draft.area ?? ''} onChange={(e) => set('area', e.target.value)} placeholder="TI, NE, MB" />
+              {knownAreas.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {knownAreas.map((area) => {
+                    const active = draft.area === area;
+                    const hex = areaColorTokens[areaColors[area]].hex;
+                    return (
+                      <button
+                        key={area}
+                        type="button"
+                        onClick={() => set('area', active ? '' : area)}
+                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition ${
+                          active ? 'border-transparent text-white' : 'border-[#dde2dc] text-[#5a625c] hover:border-[#b7bdb6]'
+                        }`}
+                        style={active ? { background: hex } : undefined}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: active ? '#fff' : hex }} />
+                        {area}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div>
               <label className={labelClass}>Scheduled date</label>

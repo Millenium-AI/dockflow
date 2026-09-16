@@ -142,3 +142,41 @@ alter table public.dockflow_board_settings alter column columns set default '[
 -- Job type: independent of status/area — flags a repair/service call vs a new install.
 alter table public.dockflow_jobs add column if not exists job_type text default 'install'
   check (job_type in ('install','maintenance'));
+
+-- ---------------------------------------------------------------------------
+-- Simple login — hardcoded email/password rows, not real Supabase Auth.
+--
+-- The table has RLS enabled with NO policies at all, so it cannot be read,
+-- written, or listed through the anon/public API key under any
+-- circumstance — not even the password column. The only way to check a
+-- login is through dockflow_login() below, a SECURITY DEFINER function
+-- that runs with elevated privilege to read the table internally and
+-- hands back nothing but true/false. This keeps "hardcode a few
+-- emails/passwords in Supabase" simple without leaking credentials to
+-- anyone holding the public anon key.
+--
+-- To add a user, run in the SQL editor:
+--   insert into public.dockflow_users (email, password) values ('name@example.com', 'choose-a-password');
+-- ---------------------------------------------------------------------------
+create table if not exists public.dockflow_users (
+  email      text primary key,
+  password   text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.dockflow_users enable row level security;
+-- Deliberately no policies — RLS with zero policies denies all access via the API.
+
+create or replace function public.dockflow_login(p_email text, p_password text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.dockflow_users
+    where email = lower(p_email) and password = p_password
+  );
+$$;
+
+grant execute on function public.dockflow_login(text, text) to anon, authenticated;
