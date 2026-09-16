@@ -31,6 +31,14 @@ export interface Job {
   files?: JobFile[];
   /** Timestamp when the job was moved to 'complete' status. */
   completedAt?: string;
+  /** Price in dollars. */
+  price?: number;
+  /** Estimated days of work to complete the job. */
+  daysOfWork?: number;
+  /** Sub-area or more specific location within the main area. */
+  subarea?: string;
+  /** Color key for the sub-area. */
+  subareaColor?: AreaColorKey;
 }
 
 export const jobTypeTokens: Record<JobType, { label: string; hex: string }> = {
@@ -74,7 +82,7 @@ export const columnDefaults: ColumnDefaults[] = [
   { id: 'complete',        label: 'Complete',               accent: '#A8B0AC' },
 ];
 
-export type ViewTab = 'barges' | 'other';
+export type ViewTab = 'barges' | 'other' | 'reporting';
 
 interface TabGridSpec {
   cols: number;

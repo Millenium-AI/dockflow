@@ -409,6 +409,16 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             >
               Status
             </button>
+            <button
+              onClick={() => setViewTab('reporting')}
+              className={`px-3 py-1.5 text-sm font-semibold rounded transition ${
+                viewTab === 'reporting'
+                  ? 'bg-[#6B1919] text-white'
+                  : 'text-[#3a423d] hover:bg-[#f5f1e8]'
+              }`}
+            >
+              Reporting
+            </button>
           </div>
           <span className="text-sm text-[#9aa29c]">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -478,6 +488,8 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
       <main className="min-h-0 flex-1 overflow-hidden p-4">
         {loading ? (
           <p className="text-sm text-[#9aa29c]">Loading the board…</p>
+        ) : viewTab === 'reporting' ? (
+          <ReportingTab jobs={jobs} now={now} />
         ) : (
           <DndContext
             sensors={sensors}
@@ -694,10 +706,14 @@ function JobCardView({
   const bgColor = hexToRgba(areaHex, opacity);
   return (
     <div
-      className={`relative rounded-lg border select-none ${compact ? 'w-44' : ''} ${
-        isNone ? 'border-[#e8dcc8] bg-white' : 'border-transparent'
+      className={`relative rounded-lg border-2 select-none ${compact ? 'w-44' : ''} ${
+        job.priority === 'high'
+          ? 'border-[#ef4444]'
+          : isNone
+            ? 'border-[#e8dcc8] bg-white'
+            : 'border-transparent'
       }`}
-      style={!isNone ? { backgroundColor: bgColor, borderColor: areaHex } : undefined}
+      style={!isNone && job.priority !== 'high' ? { backgroundColor: bgColor, borderColor: areaHex } : job.priority === 'high' ? { backgroundColor: bgColor, borderColor: '#ef4444' } : undefined}
     >
       {job.jobType === 'maintenance' && (
         <span
@@ -711,10 +727,16 @@ function JobCardView({
       <div className={`px-3 py-2 pl-3.5 ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-base font-bold leading-tight">{job.customerName}</h3>
-          {job.area && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.area}</span>}
+          {(job.subarea || job.area) && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.subarea || job.area}</span>}
         </div>
         {job.scope && <p className="mt-1 text-sm font-medium leading-snug opacity-90">{job.scope}</p>}
         {job.note && <p className="mt-0.5 text-xs leading-snug opacity-85">{job.note}</p>}
+        {(job.price !== undefined || job.daysOfWork !== undefined) && (
+          <div className="mt-1 flex items-center gap-2 text-xs opacity-85">
+            {job.price !== undefined && <span>${job.price.toLocaleString()}</span>}
+            {job.daysOfWork !== undefined && <span>{job.daysOfWork}d</span>}
+          </div>
+        )}
         {(job.priority === 'high' || job.assignedTo || job.scheduledDate) && (
           <div className="mt-1.5 flex items-center gap-2 text-xs opacity-90">
             {job.priority === 'high' && (
@@ -851,30 +873,29 @@ function AttachmentsSection({
         {files.length > 0 && (
           <div className="space-y-1 rounded-lg bg-[#faf8f3] p-2">
             {files.map((file) => (
-              <div key={file.path} className="flex items-center justify-between gap-2 rounded px-2 py-1.5 bg-white border border-[#e8dcc8] text-sm">
+              <div key={file.path} className="flex items-center gap-2 rounded px-2 py-1.5 bg-white border border-[#e8dcc8] text-sm">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(file)}
+                  className="rounded p-1 text-[#ef4444] hover:bg-[#fbf0ee] hover:text-[#b04a36] shrink-0"
+                  aria-label="Remove file"
+                  title="Delete"
+                >
+                  <X size="1.2em" />
+                </button>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-[#3a423d] truncate">{file.name}</p>
                   <p className="text-xs text-[#9aa29c]">{(file.size / 1024).toFixed(1)} KB</p>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleDownload(file)}
-                    className="rounded p-1 text-[#5a8aa8] hover:bg-[#e8f4f9]"
-                    aria-label="Download file"
-                    title="Download"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(file)}
-                    className="rounded p-1 text-[#9aa29c] hover:bg-[#fbf0ee] hover:text-[#b04a36]"
-                    aria-label="Remove file"
-                  >
-                    <X size="1em" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(file)}
+                  className="flex items-center gap-1 rounded-lg bg-[#5a8aa8] text-white px-2.5 py-1.5 text-sm font-semibold hover:bg-[#4a7a98] shrink-0"
+                  aria-label="Download file"
+                  title="Download"
+                >
+                  ↓ Download
+                </button>
               </div>
             ))}
           </div>
@@ -906,7 +927,7 @@ function JobForm({
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
       <div
-        className="pop-in mt-[6vh] w-full max-w-lg rounded-xl border border-[#e8dcc8] bg-white shadow-xl"
+        className="pop-in mt-[6vh] w-full max-w-2xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3">
@@ -959,6 +980,10 @@ function JobForm({
             </div>
           </div>
           <div>
+            <label className={labelClass}>Sub-area</label>
+            <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
+          </div>
+          <div>
             <label className={labelClass}>Work scope</label>
             <input className={`${fieldClass} mt-1`} value={draft.scope ?? ''} onChange={(e) => set('scope', e.target.value)} placeholder="13K lift, dock rebuild" />
           </div>
@@ -984,7 +1009,6 @@ function JobForm({
             <div>
               <label className={labelClass}>Priority</label>
               <select className={`${fieldClass} mt-1`} value={draft.priority ?? 'normal'} onChange={(e) => set('priority', e.target.value as Job['priority'])}>
-                <option value="low">Low</option>
                 <option value="normal">Normal</option>
                 <option value="high">High</option>
               </select>
@@ -995,6 +1019,16 @@ function JobForm({
                 <option value="install">Install</option>
                 <option value="maintenance">Maintenance</option>
               </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Price ($)</label>
+              <input className={`${fieldClass} mt-1`} type="number" value={draft.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} placeholder="0.00" min="0" step="0.01" />
+            </div>
+            <div>
+              <label className={labelClass}>Days of work</label>
+              <input className={`${fieldClass} mt-1`} type="number" value={draft.daysOfWork ?? ''} onChange={(e) => set('daysOfWork', e.target.value ? Number(e.target.value) : undefined)} placeholder="0" min="0" step="0.5" />
             </div>
           </div>
 
@@ -1209,6 +1243,205 @@ function AreaColorSettingsPanel({
           >
             Done
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
+  const activeJobs = jobs.filter((j) => j.status !== 'complete');
+  const completedJobs = jobs.filter((j) => j.status === 'complete');
+  const highPriorityJobs = jobs.filter((j) => j.priority === 'high');
+
+  const totalPrice = activeJobs.reduce((sum, j) => sum + (j.price ?? 0), 0);
+  const totalDays = activeJobs.reduce((sum, j) => sum + (j.daysOfWork ?? 0), 0);
+  const totalWeeks = (totalDays / 5).toFixed(1);
+
+  const getCompletedInRange = (daysAgo: number) => {
+    const cutoff = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+    return completedJobs.filter((j) => j.completedAt && new Date(j.completedAt) >= cutoff);
+  };
+
+  const ranges = [
+    { label: 'Last 30 days', days: 30 },
+    { label: 'Last 60 days', days: 60 },
+    { label: 'Last 90 days', days: 90 },
+    { label: 'Last 180 days', days: 180 },
+    { label: 'Last 1 year', days: 365 },
+  ];
+
+  const getJobsByArea = () => {
+    const byArea: Record<string, number> = {};
+    for (const job of jobs) {
+      const area = job.area || 'Unassigned';
+      byArea[area] = (byArea[area] ?? 0) + 1;
+    }
+    return byArea;
+  };
+
+  const getJobsByAssignment = () => {
+    const byAssigned: Record<string, number> = {};
+    for (const job of jobs) {
+      const assigned = job.assignedTo || 'Unassigned';
+      byAssigned[assigned] = (byAssigned[assigned] ?? 0) + 1;
+    }
+    return byAssigned;
+  };
+
+  const getJobsByJobType = () => {
+    return {
+      install: jobs.filter((j) => (j.jobType ?? 'install') === 'install').length,
+      maintenance: jobs.filter((j) => j.jobType === 'maintenance').length,
+    };
+  };
+
+  const getJobsByStatus = () => {
+    const byStatus: Record<string, number> = {};
+    for (const job of jobs) {
+      byStatus[job.status] = (byStatus[job.status] ?? 0) + 1;
+    }
+    return byStatus;
+  };
+
+  const jobsByArea = getJobsByArea();
+  const jobsByAssignment = getJobsByAssignment();
+  const jobsByJobType = getJobsByJobType();
+  const jobsByStatus = getJobsByStatus();
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="space-y-6 pb-6 px-2">
+        {/* Overview */}
+        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
+          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Overview</h2>
+          <div className="grid grid-cols-4 gap-3">
+            <div className="rounded-lg bg-[#faf8f3] p-3">
+              <p className="text-xs text-[#8a928c] font-semibold">Total Jobs</p>
+              <p className="text-2xl font-bold text-[#3a423d] mt-1">{jobs.length}</p>
+            </div>
+            <div className="rounded-lg bg-[#faf8f3] p-3">
+              <p className="text-xs text-[#8a928c] font-semibold">Active</p>
+              <p className="text-2xl font-bold text-[#3a423d] mt-1">{activeJobs.length}</p>
+            </div>
+            <div className="rounded-lg bg-[#faf8f3] p-3">
+              <p className="text-xs text-[#8a928c] font-semibold">Completed</p>
+              <p className="text-2xl font-bold text-[#3a423d] mt-1">{completedJobs.length}</p>
+            </div>
+            <div className="rounded-lg bg-[#fbf0ee] p-3">
+              <p className="text-xs text-[#8a928c] font-semibold">High Priority</p>
+              <p className="text-2xl font-bold text-[#ef4444] mt-1">{highPriorityJobs.length}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Financial & Work (if data filled) */}
+        {(totalPrice > 0 || totalDays > 0) && (
+          <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
+            <h2 className="text-lg font-bold text-[#6B1919] mb-4">Active Work Pipeline</h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-lg bg-[#faf8f3] p-4">
+                <p className="text-sm text-[#8a928c] font-semibold">Total $</p>
+                <p className="text-3xl font-bold text-[#3a423d] mt-1">${totalPrice.toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg bg-[#faf8f3] p-4">
+                <p className="text-sm text-[#8a928c] font-semibold">Total Days</p>
+                <p className="text-3xl font-bold text-[#3a423d] mt-1">{totalDays.toFixed(0)}</p>
+              </div>
+              <div className="rounded-lg bg-[#faf8f3] p-4">
+                <p className="text-sm text-[#8a928c] font-semibold">Weeks</p>
+                <p className="text-3xl font-bold text-[#3a423d] mt-1">{totalWeeks}w</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Jobs by Status */}
+        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
+          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Jobs by Status</h2>
+          <div className="space-y-2">
+            {columnDefaults.map((col) => {
+              const count = jobsByStatus[col.id] ?? 0;
+              return (
+                <div key={col.id} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: col.accent }} />
+                    <span className="font-semibold text-[#3a423d]">{col.label}</span>
+                  </div>
+                  <span className="text-sm font-bold text-[#6B1919]">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Jobs by Area */}
+        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
+          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Jobs by Area</h2>
+          <div className="space-y-2">
+            {Object.entries(jobsByArea)
+              .sort((a, b) => b[1] - a[1])
+              .map(([area, count]) => (
+                <div key={area} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
+                  <span className="font-mono font-semibold text-[#3a423d]">{area}</span>
+                  <span className="text-sm font-bold text-[#6B1919]">{count}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Jobs by Assignment */}
+        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
+          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Jobs by Team Member</h2>
+          <div className="space-y-2">
+            {Object.entries(jobsByAssignment)
+              .sort((a, b) => b[1] - a[1])
+              .map(([assigned, count]) => (
+                <div key={assigned} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
+                  <span className="font-semibold text-[#3a423d]">{assigned}</span>
+                  <span className="text-sm font-bold text-[#6B1919]">{count}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Job Types */}
+        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
+          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Job Types</h2>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
+              <span className="font-semibold text-[#3a423d]">Install</span>
+              <span className="text-sm font-bold text-[#6B1919]">{jobsByJobType.install}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-2">
+              <span className="font-semibold text-[#3a423d]">Maintenance</span>
+              <span className="text-sm font-bold text-[#6B1919]">{jobsByJobType.maintenance}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Completed Jobs by Time Range */}
+        <div className="bg-white rounded-xl border border-[#e8dcc8] p-6">
+          <h2 className="text-lg font-bold text-[#6B1919] mb-4">Completed Work</h2>
+          <div className="space-y-2">
+            {ranges.map((range) => {
+              const jobsInRange = getCompletedInRange(range.days);
+              const priceInRange = jobsInRange.reduce((sum, j) => sum + (j.price ?? 0), 0);
+              const daysInRange = jobsInRange.reduce((sum, j) => sum + (j.daysOfWork ?? 0), 0);
+              return (
+                <div key={range.days} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
+                  <div>
+                    <p className="font-semibold text-[#3a423d]">{range.label}</p>
+                    <p className="text-sm text-[#8a928c]">{jobsInRange.length} jobs</p>
+                  </div>
+                  <div className="text-right">
+                    {priceInRange > 0 && <p className="font-semibold text-[#3a423d]">${priceInRange.toLocaleString()}</p>}
+                    {daysInRange > 0 && <p className="text-sm text-[#8a928c]">{daysInRange.toFixed(0)} days</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

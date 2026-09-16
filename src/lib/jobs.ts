@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Job, JobFile, JobPriority, JobStatus, JobType } from '../data';
+import type { Job, JobFile, JobPriority, JobStatus, JobType, AreaColorKey } from '../data';
 
 const TABLE = 'dockflow_jobs';
 const FILES_BUCKET = 'job-files';
@@ -18,6 +18,10 @@ interface Row {
   sort_order: number | null;
   files: JobFile[] | null;
   completed_at: string | null;
+  price: number | null;
+  days_of_work: number | null;
+  subarea: string | null;
+  subarea_color: string | null;
 }
 
 const fromRow = (r: Row): Job => ({
@@ -34,6 +38,10 @@ const fromRow = (r: Row): Job => ({
   sortOrder: r.sort_order ?? undefined,
   files: r.files ?? [],
   completedAt: r.completed_at ?? undefined,
+  price: r.price ?? undefined,
+  daysOfWork: r.days_of_work ?? undefined,
+  subarea: r.subarea ?? undefined,
+  subareaColor: (r.subarea_color as AreaColorKey) ?? undefined,
 });
 
 const toRow = (j: Job) => ({
@@ -50,6 +58,10 @@ const toRow = (j: Job) => ({
   sort_order: typeof j.sortOrder === 'number' ? j.sortOrder : null,
   files: j.files && j.files.length > 0 ? j.files : null,
   completed_at: j.completedAt || null,
+  price: typeof j.price === 'number' ? j.price : null,
+  days_of_work: typeof j.daysOfWork === 'number' ? j.daysOfWork : null,
+  subarea: j.subarea || null,
+  subarea_color: j.subareaColor || null,
 });
 
 export async function fetchJobs(): Promise<Job[]> {
