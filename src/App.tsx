@@ -995,19 +995,19 @@ function JobForm({
   const knownAreas = Object.keys(areaColors).sort();
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto" onClick={onClose}>
       <div
-        className="pop-in mt-[6vh] w-full max-w-2xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl"
+        className="pop-in mt-[6vh] w-full max-w-2xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3">
+        <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
           <h2 className="text-lg font-bold text-[#6B1919]">{job ? 'Edit job' : 'Add job'}</h2>
           <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f5f1e8]" aria-label="Close">
             <X size="1em" />
           </button>
         </div>
 
-        <div className="space-y-3 px-5 py-4">
+        <div className="space-y-3 px-5 py-4 overflow-y-auto flex-1 min-h-0">
           <div>
             <label className={labelClass}>Customer or job name</label>
             <input
@@ -1049,31 +1049,27 @@ function JobForm({
               <input className={`${fieldClass} mt-1`} value={draft.scheduledDate ?? ''} onChange={(e) => set('scheduledDate', e.target.value)} placeholder="Oct 16" />
             </div>
           </div>
-          <div>
-            <label className={labelClass}>Sub-area</label>
-            <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
-          </div>
-          <div>
-            <label className={labelClass}>Work scope</label>
-            <input className={`${fieldClass} mt-1`} value={draft.scope ?? ''} onChange={(e) => set('scope', e.target.value)} placeholder="13K lift, dock rebuild" />
-          </div>
-          <div>
-            <label className={labelClass}>Short note</label>
-            <input className={`${fieldClass} mt-1`} value={draft.note ?? ''} onChange={(e) => set('note', e.target.value)} placeholder="No demo, needs permit" />
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>Column</label>
+              <label className={labelClass}>Sub-area</label>
+              <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
+            </div>
+            <div>
+              <label className={labelClass}>Job Status</label>
               <select className={`${fieldClass} mt-1`} value={draft.status} onChange={(e) => set('status', e.target.value as JobStatus)}>
                 {columnDefaults.map((c) => (
                   <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className={labelClass}>Tech</label>
-              <input className={`${fieldClass} mt-1`} value={draft.tech ?? ''} onChange={(e) => set('tech', e.target.value)} />
-            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Work scope</label>
+            <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.scope ?? ''} onChange={(e) => set('scope', e.target.value)} placeholder="13K lift, dock rebuild" rows={3} />
+          </div>
+          <div>
+            <label className={labelClass}>Short note</label>
+            <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.note ?? ''} onChange={(e) => set('note', e.target.value)} placeholder="No demo, needs permit" rows={2} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1107,7 +1103,7 @@ function JobForm({
 
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#e8dcc8] px-5 py-3">
+        <div className="flex items-center justify-between border-t border-[#e8dcc8] px-5 py-3 shrink-0">
           <div>
             {onDelete && job && (
               <button
