@@ -683,14 +683,18 @@ function BoardColumn({
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-1">
-              <span className="text-xs font-semibold text-[#9aa29c]">Total</span>
+              <span className="text-xs font-semibold text-[#9aa29c]">Total Jobs</span>
               <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-semibold text-[#9aa29c]">Total Days</span>
+              <span className="text-sm font-semibold text-[#3a423d]">{jobs.reduce((sum, j) => sum + (j.daysOfWork ?? 0), 0).toFixed(1)}</span>
             </div>
             {(() => {
               const columnRevenue = jobs.reduce((sum, j) => sum + (j.price ?? 0), 0);
               return columnRevenue > 0 ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-xs font-semibold text-[#9aa29c]">Revenue</span>
+                  <span className="text-xs font-semibold text-[#9aa29c]">Total Revenue</span>
                   <span className="text-sm font-semibold text-[#3a423d]">${columnRevenue.toLocaleString()}</span>
                 </div>
               ) : null;
@@ -1316,7 +1320,7 @@ function AreaColorSettingsPanel({
 }
 
 function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
-  const activeJobs = jobs.filter((j) => j.status !== 'complete');
+  const activeJobs = jobs.filter((j) => j.status !== 'complete' && j.status !== 'hold');
   const completedJobs = jobs.filter((j) => j.status === 'complete');
   const highPriorityJobs = jobs.filter((j) => j.priority === 'high');
 
