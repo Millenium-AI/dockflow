@@ -681,9 +681,20 @@ function BoardColumn({
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
             <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs font-semibold text-[#9aa29c]">Total</span>
-            <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-semibold text-[#9aa29c]">Total</span>
+              <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
+            </div>
+            {(() => {
+              const columnRevenue = jobs.reduce((sum, j) => sum + (j.price ?? 0), 0);
+              return columnRevenue > 0 ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-semibold text-[#9aa29c]">Revenue</span>
+                  <span className="text-sm font-semibold text-[#3a423d]">${columnRevenue.toLocaleString()}</span>
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
         {isBarge && (
@@ -1335,22 +1346,6 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
     return byArea;
   };
 
-  const getJobsByAssignment = () => {
-    const byAssigned: Record<string, number> = {};
-    for (const job of jobs) {
-      const assigned = job.assignedTo || 'Unassigned';
-      byAssigned[assigned] = (byAssigned[assigned] ?? 0) + 1;
-    }
-    return byAssigned;
-  };
-
-  const getJobsByJobType = () => {
-    return {
-      install: jobs.filter((j) => (j.jobType ?? 'install') === 'install').length,
-      maintenance: jobs.filter((j) => j.jobType === 'maintenance').length,
-    };
-  };
-
   const getJobsByStatus = () => {
     const byStatus: Record<string, number> = {};
     for (const job of jobs) {
@@ -1360,9 +1355,8 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
   };
 
   const jobsByArea = getJobsByArea();
-  const jobsByAssignment = getJobsByAssignment();
-  const jobsByJobType = getJobsByJobType();
   const jobsByStatus = getJobsByStatus();
+  const inProgressCount = (jobsByStatus['barge-1'] ?? 0) + (jobsByStatus['barge-2'] ?? 0) + (jobsByStatus['barge-3'] ?? 0);
 
   return (
     <div className="h-full overflow-y-auto bg-[#faf8f3]">
@@ -1372,57 +1366,47 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
           <h1 className="text-4xl font-bold text-[#6B1919]">Job Reports</h1>
         </div>
 
-        {/* Overview */}
+        {/* Overview & Pipeline */}
         <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
           <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Overview</h2>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="rounded-lg bg-[#faf8f3] p-6 border-l-4 border-[#6D8FA8]">
-              <p className="text-sm text-[#8a928c] font-semibold mb-2">Total Jobs</p>
-              <p className="text-4xl font-bold text-[#3a423d]">{jobs.length}</p>
-            </div>
-            <div className="rounded-lg bg-[#faf8f3] p-6 border-l-4 border-[#5B6E65]">
+          <div className="grid grid-cols-3 gap-6">
+            {/* Left: Active */}
+            <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-6 text-center border border-[#e8dcc8]">
               <p className="text-sm text-[#8a928c] font-semibold mb-2">Active</p>
               <p className="text-4xl font-bold text-[#3a423d]">{activeJobs.length}</p>
             </div>
-            <div className="rounded-lg bg-[#faf8f3] p-6 border-l-4 border-[#A8B0AC]">
-              <p className="text-sm text-[#8a928c] font-semibold mb-2">Completed</p>
-              <p className="text-4xl font-bold text-[#3a423d]">{completedJobs.length}</p>
-            </div>
-            <div className="rounded-lg bg-[#fbf0ee] p-6 border-l-4 border-[#ef4444]">
-              <p className="text-sm text-[#8a928c] font-semibold mb-2">🔴 High Priority</p>
-              <p className="text-4xl font-bold text-[#ef4444]">{highPriorityJobs.length}</p>
-            </div>
+            {/* Right: Pipeline metrics (if data exists) */}
+            {(totalPrice > 0 || totalDays > 0) ? (
+              <>
+                <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-6 text-center border border-[#e8dcc8]">
+                  <p className="text-sm text-[#8a928c] font-semibold mb-2">Total Revenue</p>
+                  <p className="text-4xl font-bold text-[#3a423d]">${totalPrice.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-6 text-center border border-[#e8dcc8]">
+                  <p className="text-sm text-[#8a928c] font-semibold mb-2">Total Days / Weeks</p>
+                  <p className="text-4xl font-bold text-[#3a423d]">{totalDays.toFixed(0)}d / {totalWeeks}w</p>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
 
-        {/* Financial & Work (if data filled) */}
-        {(totalPrice > 0 || totalDays > 0) && (
-          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
-            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Active Work Pipeline</h2>
-            <div className="grid grid-cols-3 gap-6">
-              <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-8 text-center border border-[#e8dcc8]">
-                <p className="text-lg text-[#8a928c] font-semibold mb-3">Total Revenue</p>
-                <p className="text-5xl font-bold text-[#3a423d]">${totalPrice.toLocaleString()}</p>
-              </div>
-              <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-8 text-center border border-[#e8dcc8]">
-                <p className="text-lg text-[#8a928c] font-semibold mb-3">Total Days</p>
-                <p className="text-5xl font-bold text-[#3a423d]">{totalDays.toFixed(0)}</p>
-              </div>
-              <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-8 text-center border border-[#e8dcc8]">
-                <p className="text-lg text-[#8a928c] font-semibold mb-3">Weeks of Work</p>
-                <p className="text-5xl font-bold text-[#3a423d]">{totalWeeks}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 2x2 Grid */}
+        {/* 2 Column Grid */}
         <div className="grid grid-cols-2 gap-6">
           {/* Jobs by Status */}
           <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
             <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Jobs by Status</h2>
             <div className="space-y-3">
-              {columnDefaults.map((col) => {
+              {/* In Progress (combined barges) */}
+              <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border-l-4" style={{ borderLeftColor: '#6D8FA8' }}>
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full" style={{ background: '#6D8FA8' }} />
+                  <span className="font-semibold text-[#3a423d]">In Progress</span>
+                </div>
+                <span className="text-xl font-bold text-[#6B1919]">{inProgressCount}</span>
+              </div>
+              {/* Other statuses */}
+              {columnDefaults.filter((col) => !col.id.startsWith('barge-')).map((col) => {
                 const count = jobsByStatus[col.id] ?? 0;
                 return (
                   <div key={col.id} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border-l-4" style={{ borderLeftColor: col.accent }}>
@@ -1451,36 +1435,6 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
                 ))}
             </div>
           </div>
-
-          {/* Jobs by Assignment */}
-          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
-            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Jobs by Team Member</h2>
-            <div className="space-y-3">
-              {Object.entries(jobsByAssignment)
-                .sort((a, b) => b[1] - a[1])
-                .map(([assigned, count]) => (
-                  <div key={assigned} className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
-                    <span className="font-semibold text-[#3a423d]">{assigned}</span>
-                    <span className="text-xl font-bold text-[#6B1919]">{count}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          {/* Job Types */}
-          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
-            <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Job Types</h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
-                <span className="font-semibold text-[#3a423d]">Install</span>
-                <span className="text-xl font-bold text-[#6B1919]">{jobsByJobType.install}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-[#faf8f3] px-4 py-3 border border-[#e8dcc8]">
-                <span className="font-semibold text-[#3a423d]">Maintenance</span>
-                <span className="text-xl font-bold text-[#6B1919]">{jobsByJobType.maintenance}</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Completed Jobs by Time Range */}
@@ -1493,14 +1447,23 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
               const daysInRange = jobsInRange.reduce((sum, j) => sum + (j.daysOfWork ?? 0), 0);
               return (
                 <div key={range.days} className="rounded-lg bg-[#faf8f3] px-6 py-4 border-2 border-[#e8dcc8]">
-                  <div className="flex items-center justify-between">
+                  <p className="font-bold text-[#3a423d] text-lg mb-3">{range.label}</p>
+                  <div className="grid grid-cols-4 gap-4 text-center">
                     <div>
-                      <p className="font-bold text-[#3a423d] text-lg">{range.label}</p>
-                      <p className="text-base text-[#8a928c]">{jobsInRange.length} jobs completed</p>
+                      <p className="text-sm text-[#8a928c] font-semibold mb-1">Jobs</p>
+                      <p className="text-2xl font-bold text-[#3a423d]">{jobsInRange.length}</p>
                     </div>
-                    <div className="text-right">
-                      {priceInRange > 0 && <p className="font-bold text-[#3a423d] text-lg">${priceInRange.toLocaleString()}</p>}
-                      {daysInRange > 0 && <p className="text-base text-[#8a928c]">{daysInRange.toFixed(0)} days work</p>}
+                    <div>
+                      <p className="text-sm text-[#8a928c] font-semibold mb-1">Total Value</p>
+                      <p className="text-2xl font-bold text-[#3a423d]">${priceInRange.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-[#8a928c] font-semibold mb-1">Days Worked</p>
+                      <p className="text-2xl font-bold text-[#3a423d]">{daysInRange.toFixed(0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-[#8a928c] font-semibold mb-1">Weeks</p>
+                      <p className="text-2xl font-bold text-[#3a423d]">{(daysInRange / 5).toFixed(1)}</p>
                     </div>
                   </div>
                 </div>
