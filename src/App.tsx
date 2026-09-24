@@ -802,6 +802,7 @@ function JobCardView({
           <h3 className="text-base font-bold leading-tight">{job.customerName}</h3>
           {(job.subarea || job.area) && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.subarea || job.area}</span>}
         </div>
+        {job.address && <p className="mt-0.5 text-xs leading-snug opacity-85">{job.address}</p>}
         {job.scope && <p className="mt-1 text-sm font-medium leading-snug opacity-90">{job.scope}</p>}
         {job.note && <p className="mt-0.5 text-xs leading-snug opacity-85">{job.note}</p>}
         {(job.priority === 'high' || job.scheduledDate) && (
@@ -1008,14 +1009,20 @@ function JobForm({
         </div>
 
         <div className="space-y-3 px-5 py-4 overflow-y-auto flex-1 min-h-0">
-          <div>
-            <label className={labelClass}>Customer or job name</label>
-            <input
-              className={`${fieldClass} mt-1`}
-              value={draft.customerName}
-              onChange={(e) => set('customerName', e.target.value)}
-              autoFocus
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Customer or job name</label>
+              <input
+                className={`${fieldClass} mt-1`}
+                value={draft.customerName}
+                onChange={(e) => set('customerName', e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Customer address</label>
+              <input className={`${fieldClass} mt-1`} value={draft.address ?? ''} onChange={(e) => set('address', e.target.value)} placeholder="Street address, city, state" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1045,14 +1052,14 @@ function JobForm({
               )}
             </div>
             <div>
-              <label className={labelClass}>Scheduled date</label>
-              <input className={`${fieldClass} mt-1`} value={draft.scheduledDate ?? ''} onChange={(e) => set('scheduledDate', e.target.value)} placeholder="Oct 16" />
+              <label className={labelClass}>Sub-area</label>
+              <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>Sub-area</label>
-              <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
+              <label className={labelClass}>Scheduled date</label>
+              <input className={`${fieldClass} mt-1`} value={draft.scheduledDate ?? ''} onChange={(e) => set('scheduledDate', e.target.value)} placeholder="Oct 16" />
             </div>
             <div>
               <label className={labelClass}>Job Status</label>
@@ -1073,6 +1080,16 @@ function JobForm({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className={labelClass}>Price ($)</label>
+              <input className={`${fieldClass} mt-1`} type="number" value={draft.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} placeholder="0.00" min="0" step="0.01" />
+            </div>
+            <div>
+              <label className={labelClass}>Days of work</label>
+              <input className={`${fieldClass} mt-1`} type="number" value={draft.daysOfWork ?? ''} onChange={(e) => set('daysOfWork', e.target.value ? Number(e.target.value) : undefined)} placeholder="0" min="0" step="0.5" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
               <label className={labelClass}>Priority</label>
               <select className={`${fieldClass} mt-1`} value={draft.priority ?? 'normal'} onChange={(e) => set('priority', e.target.value as Job['priority'])}>
                 <option value="normal">Normal</option>
@@ -1085,16 +1102,6 @@ function JobForm({
                 <option value="install">Install</option>
                 <option value="maintenance">Maintenance</option>
               </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Price ($)</label>
-              <input className={`${fieldClass} mt-1`} type="number" value={draft.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} placeholder="0.00" min="0" step="0.01" />
-            </div>
-            <div>
-              <label className={labelClass}>Days of work</label>
-              <input className={`${fieldClass} mt-1`} type="number" value={draft.daysOfWork ?? ''} onChange={(e) => set('daysOfWork', e.target.value ? Number(e.target.value) : undefined)} placeholder="0" min="0" step="0.5" />
             </div>
           </div>
 
@@ -1123,7 +1130,7 @@ function JobForm({
               disabled={!draft.customerName.trim()}
               className="rounded-lg bg-[#6B1919] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {job ? 'Save' : 'Add job'}
+              Save
             </button>
           </div>
         </div>

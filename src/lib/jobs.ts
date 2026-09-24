@@ -7,6 +7,7 @@ const FILES_BUCKET = 'job-files';
 interface Row {
   id: string;
   customer_name: string;
+  address: string | null;
   area: string | null;
   scope: string | null;
   note: string | null;
@@ -26,6 +27,7 @@ interface Row {
 const fromRow = (r: Row): Job => ({
   id: r.id,
   customerName: r.customer_name,
+  address: r.address ?? undefined,
   area: r.area ?? '',
   scope: r.scope ?? '',
   note: r.note ?? '',
@@ -45,6 +47,7 @@ const fromRow = (r: Row): Job => ({
 const toRow = (j: Job) => ({
   id: j.id,
   customer_name: j.customerName,
+  address: j.address || null,
   area: j.area || null,
   scope: j.scope || null,
   note: j.note || null,

@@ -16,6 +16,7 @@ export interface JobFile {
 export interface Job {
   id: string;
   customerName: string;
+  address?: string;
   area?: string;
   scope?: string;
   note?: string;
