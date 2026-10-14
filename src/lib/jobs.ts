@@ -22,6 +22,8 @@ interface Row {
   days_of_work: number | null;
   subarea: string | null;
   subarea_color: string | null;
+  city_permit_expiration: string | null;
+  county_permit_expiration: string | null;
 }
 
 const fromRow = (r: Row): Job => ({
@@ -42,6 +44,8 @@ const fromRow = (r: Row): Job => ({
   daysOfWork: r.days_of_work ?? undefined,
   subarea: r.subarea ?? undefined,
   subareaColor: (r.subarea_color as AreaColorKey) ?? undefined,
+  cityPermitExpiration: r.city_permit_expiration ?? undefined,
+  countyPermitExpiration: r.county_permit_expiration ?? undefined,
 });
 
 const toRow = (j: Job) => ({
@@ -62,6 +66,8 @@ const toRow = (j: Job) => ({
   days_of_work: typeof j.daysOfWork === 'number' ? j.daysOfWork : null,
   subarea: j.subarea || null,
   subarea_color: j.subareaColor || null,
+  city_permit_expiration: j.cityPermitExpiration || null,
+  county_permit_expiration: j.countyPermitExpiration || null,
 });
 
 export async function fetchJobs(): Promise<Job[]> {

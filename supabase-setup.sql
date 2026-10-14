@@ -143,6 +143,10 @@ alter table public.dockflow_board_settings alter column columns set default '[
 alter table public.dockflow_jobs add column if not exists job_type text default 'install'
   check (job_type in ('install','maintenance'));
 
+-- Permit expiration dates, shown in the job form.
+alter table public.dockflow_jobs add column if not exists city_permit_expiration date;
+alter table public.dockflow_jobs add column if not exists county_permit_expiration date;
+
 -- ---------------------------------------------------------------------------
 -- Simple login — hardcoded email/password rows, not real Supabase Auth.
 --
