@@ -39,6 +39,10 @@ export interface Job {
   subarea?: string;
   /** Color key for the sub-area. */
   subareaColor?: AreaColorKey;
+  /** City permit expiration date. */
+  cityPermitExpiration?: string;
+  /** County permit expiration date. */
+  countyPermitExpiration?: string;
 }
 
 export const jobTypeTokens: Record<JobType, { label: string; hex: string }> = {

@@ -17,7 +17,7 @@ import { fetchAreaColors, saveAreaColors, fetchAreaOpacity, saveAreaOpacity, fet
 
 const REFRESH_MS = 20_000;
 const fieldClass =
-  'w-full rounded-lg border border-[#e8dcc8] bg-white px-3 py-2 text-sm text-[#2c3230] outline-none transition focus:border-[#6B1919] focus:ring-2 focus:ring-[#6B1919]/20';
+  'w-full rounded-lg border border-[#e8dcc8] bg-white px-3 py-2 text-sm text-[#2c3230] outline-none transition placeholder:text-[#2c3230]/35 focus:border-[#6B1919] focus:ring-2 focus:ring-[#6B1919]/20';
 const labelClass = 'text-sm font-semibold text-[#8a928c]';
 
 type RenderColumn = ColumnDefaults;
@@ -976,6 +976,76 @@ function AttachmentsSection({
   );
 }
 
+function AreaSelect({
+  value,
+  areas,
+  areaColors,
+  onChange,
+}: {
+  value: string;
+  areas: string[];
+  areaColors: AreaColorSettings;
+  onChange: (area: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const selectedHex = value && areaColors[value] ? areaColorTokens[areaColors[value]].hex : null;
+
+  return (
+    <div ref={rootRef} className="relative mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`${fieldClass} flex items-center gap-2 text-left`}
+      >
+        {selectedHex && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: selectedHex }} />}
+        <span className={value ? '' : 'text-[#a8aca7]'}>{value || '—'}</span>
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-[#e8dcc8] bg-white shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+            className="flex w-full items-center px-3 py-1.5 text-left text-sm text-[#a8aca7] hover:bg-[#f5f1e8]"
+          >
+            —
+          </button>
+          {areas.map((area) => {
+            const hex = areaColorTokens[areaColors[area]].hex;
+            return (
+              <button
+                key={area}
+                type="button"
+                onClick={() => {
+                  onChange(area);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[#232826] hover:bg-[#f5f1e8]"
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: hex }} />
+                {area}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function JobForm({
   job,
   areaColors,
@@ -989,125 +1059,131 @@ function JobForm({
   onSave: (job: Job) => void;
   onDelete?: (id: string) => void;
 }) {
-  const [draft, setDraft] = useState<Job>(
+  const initialDraft = useRef<Job>(
     job ?? { id: crypto.randomUUID(), customerName: '', status: 'ready', priority: 'normal', files: [] }
   );
+  const [draft, setDraft] = useState<Job>(initialDraft.current);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const set = <K extends keyof Job>(key: K, value: Job[K]) => setDraft((cur) => ({ ...cur, [key]: value }));
   const knownAreas = Object.keys(areaColors).sort();
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(initialDraft.current);
+  const requestClose = () => (isDirty ? setConfirmDiscard(true) : onClose());
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto" onClick={requestClose}>
       <div
-        className="pop-in mt-[6vh] w-full max-w-2xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh]"
+        className="pop-in mt-[6vh] w-full max-w-3xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
           <h2 className="text-lg font-bold text-[#6B1919]">{job ? 'Edit job' : 'Add job'}</h2>
-          <button onClick={onClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f5f1e8]" aria-label="Close">
+          <button onClick={requestClose} className="rounded p-1 text-[#8a928c] hover:bg-[#f5f1e8]" aria-label="Close">
             <X size="1em" />
           </button>
         </div>
 
-        <div className="space-y-3 px-5 py-4 overflow-y-auto flex-1 min-h-0">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Customer or job name</label>
-              <input
-                className={`${fieldClass} mt-1`}
-                value={draft.customerName}
-                onChange={(e) => set('customerName', e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Customer address</label>
-              <input className={`${fieldClass} mt-1`} value={draft.address ?? ''} onChange={(e) => set('address', e.target.value)} placeholder="Street address, city, state" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Area or route</label>
-              <input className={`${fieldClass} mt-1`} value={draft.area ?? ''} onChange={(e) => set('area', e.target.value)} placeholder="TI, NE, MB" />
-              {knownAreas.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {knownAreas.map((area) => {
-                    const active = draft.area === area;
-                    const hex = areaColorTokens[areaColors[area]].hex;
-                    return (
-                      <button
-                        key={area}
-                        type="button"
-                        onClick={() => set('area', active ? '' : area)}
-                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition ${
-                          active ? 'border-transparent text-white' : 'border-[#e8dcc8] text-[#5a625c] hover:border-[#d8cbb5]'
-                        }`}
-                        style={active ? { background: hex } : undefined}
-                      >
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: active ? '#fff' : hex }} />
-                        {area}
-                      </button>
-                    );
-                  })}
+        <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
+          <div className="grid grid-cols-[1.1fr_1fr] gap-x-5 gap-y-3 items-start">
+            {/* Left column: core job details */}
+            <div className="space-y-3">
+              <div>
+                <label className={labelClass}>Customer or Job Name</label>
+                <input
+                  className={`${fieldClass} mt-1`}
+                  value={draft.customerName}
+                  onChange={(e) => set('customerName', e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Customer Address</label>
+                <input className={`${fieldClass} mt-1`} value={draft.address ?? ''} onChange={(e) => set('address', e.target.value)} placeholder="Street address, city, state" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Area</label>
+                  <AreaSelect
+                    value={draft.area ?? ''}
+                    areas={knownAreas}
+                    areaColors={areaColors}
+                    onChange={(area) => set('area', area)}
+                  />
                 </div>
-              )}
+                <div>
+                  <label className={labelClass}>Sub-Area</label>
+                  <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Price ($)</label>
+                  <input className={`${fieldClass} mt-1`} type="number" value={draft.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} placeholder="0.00" min="0" step="0.01" />
+                </div>
+                <div>
+                  <label className={labelClass}>Days of Work</label>
+                  <input className={`${fieldClass} mt-1`} type="number" value={draft.daysOfWork ?? ''} onChange={(e) => set('daysOfWork', e.target.value ? Number(e.target.value) : undefined)} placeholder="0" min="0" step="0.5" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Priority</label>
+                  <select className={`${fieldClass} mt-1`} value={draft.priority ?? 'normal'} onChange={(e) => set('priority', e.target.value as Job['priority'])}>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Job Type</label>
+                  <select className={`${fieldClass} mt-1`} value={draft.jobType ?? 'install'} onChange={(e) => set('jobType', e.target.value as JobType)}>
+                    <option value="install">Install</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                </div>
+              </div>
+              <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf8f1] p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8a7a5c]">Permit expiration</p>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>City Permit</label>
+                    <input className={`${fieldClass} mt-1`} type="date" value={draft.cityPermitExpiration ?? ''} onChange={(e) => set('cityPermitExpiration', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>County Permit</label>
+                    <input className={`${fieldClass} mt-1`} type="date" value={draft.countyPermitExpiration ?? ''} onChange={(e) => set('countyPermitExpiration', e.target.value)} />
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className={labelClass}>Sub-area</label>
-              <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Scheduled date</label>
-              <input className={`${fieldClass} mt-1`} value={draft.scheduledDate ?? ''} onChange={(e) => set('scheduledDate', e.target.value)} placeholder="Oct 16" />
-            </div>
-            <div>
-              <label className={labelClass}>Job Status</label>
-              <select className={`${fieldClass} mt-1`} value={draft.status} onChange={(e) => set('status', e.target.value as JobStatus)}>
-                {columnDefaults.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>Work scope</label>
-            <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.scope ?? ''} onChange={(e) => set('scope', e.target.value)} placeholder="13K lift, dock rebuild" rows={3} />
-          </div>
-          <div>
-            <label className={labelClass}>Short note</label>
-            <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.note ?? ''} onChange={(e) => set('note', e.target.value)} placeholder="No demo, needs permit" rows={2} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Price ($)</label>
-              <input className={`${fieldClass} mt-1`} type="number" value={draft.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} placeholder="0.00" min="0" step="0.01" />
-            </div>
-            <div>
-              <label className={labelClass}>Days of work</label>
-              <input className={`${fieldClass} mt-1`} type="number" value={draft.daysOfWork ?? ''} onChange={(e) => set('daysOfWork', e.target.value ? Number(e.target.value) : undefined)} placeholder="0" min="0" step="0.5" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Priority</label>
-              <select className={`${fieldClass} mt-1`} value={draft.priority ?? 'normal'} onChange={(e) => set('priority', e.target.value as Job['priority'])}>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Job type</label>
-              <select className={`${fieldClass} mt-1`} value={draft.jobType ?? 'install'} onChange={(e) => set('jobType', e.target.value as JobType)}>
-                <option value="install">Install</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
-            </div>
-          </div>
 
-          {/* Attachments Section */}
-          <AttachmentsSection files={draft.files ?? []} jobId={draft.id} onFilesChange={(files) => set('files', files)} />
-
+            {/* Right column: date, status, scope, note, attachments — each its own row */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Scheduled Date</label>
+                  <input className={`${fieldClass} mt-1`} value={draft.scheduledDate ?? ''} onChange={(e) => set('scheduledDate', e.target.value)} placeholder="Oct 16" />
+                </div>
+                <div>
+                  <label className={labelClass}>Job Status</label>
+                  <select className={`${fieldClass} mt-1`} value={draft.status} onChange={(e) => set('status', e.target.value as JobStatus)}>
+                    {columnDefaults.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Work Scope</label>
+                <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.scope ?? ''} onChange={(e) => set('scope', e.target.value)} placeholder="13K lift, dock rebuild" rows={3} />
+              </div>
+              <div>
+                <label className={labelClass}>Short Note</label>
+                <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.note ?? ''} onChange={(e) => set('note', e.target.value)} placeholder="No demo, needs permit" rows={2} />
+              </div>
+              <div>
+                <AttachmentsSection files={draft.files ?? []} jobId={draft.id} onFilesChange={(files) => set('files', files)} />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-[#e8dcc8] px-5 py-3 shrink-0">
@@ -1122,7 +1198,7 @@ function JobForm({
             )}
           </div>
           <div className="flex gap-2">
-            <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#6a726c] hover:bg-[#f5f1e8]">
+            <button onClick={requestClose} className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#6a726c] hover:bg-[#f5f1e8]">
               Cancel
             </button>
             <button
@@ -1135,6 +1211,36 @@ function JobForm({
           </div>
         </div>
       </div>
+
+      {confirmDiscard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2926]/40 fade-in" onClick={(e) => e.stopPropagation()}>
+          <div className="pop-in w-full max-w-sm rounded-xl border border-[#e8dcc8] bg-white p-5 shadow-xl">
+            <h3 className="text-base font-bold text-[#6B1919]">Discard changes?</h3>
+            <p className="mt-1.5 text-sm text-[#5a625c]">You have unsaved changes to this job. Save them now, or discard and close without saving.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDiscard(false)}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#6a726c] hover:bg-[#f5f1e8]"
+              >
+                Keep editing
+              </button>
+              <button
+                onClick={onClose}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#b04a36] hover:bg-[#fbf0ee]"
+              >
+                Discard
+              </button>
+              <button
+                onClick={() => draft.customerName.trim() && onSave(draft)}
+                disabled={!draft.customerName.trim()}
+                className="rounded-lg bg-[#6B1919] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
