@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  DndContext, DragOverlay, PointerSensor, closestCorners, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, closestCorners, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
@@ -16,6 +16,8 @@ import { fetchJobs, reorderColumn, removeJob, saveJob } from './lib/jobs';
 import { fetchAreaColors, saveAreaColors, fetchAreaOpacity, saveAreaOpacity, fetchHideOldCompleted, saveHideOldCompleted, fetchColumnTechs, saveColumnTechs } from './lib/settings';
 
 const REFRESH_MS = 20_000;
+/** True on phones/tablets (finger-driven screens). Used to avoid auto-opening the keyboard. */
+const isTouchDevice = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 const fieldClass =
   'w-full rounded-lg border border-[#e8dcc8] bg-white px-3 py-2 text-sm text-[#2c3230] outline-none transition placeholder:text-[#2c3230]/35 focus:border-[#6B1919] focus:ring-2 focus:ring-[#6B1919]/20';
 const labelClass = 'text-sm font-semibold text-[#8a928c]';
@@ -65,7 +67,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-[#faf8f3]">
+    <div className="flex min-h-app items-center justify-center bg-[#faf8f3] p-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-xl border border-[#e8dcc8] bg-white p-6 shadow-xl"
@@ -81,6 +83,10 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
             <input
               className={`${fieldClass} mt-1`}
               type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoFocus
@@ -92,6 +98,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (email: string) => void }) {
             <input
               className={`${fieldClass} mt-1`}
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -137,11 +144,24 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const [activeId, setActiveId] = useState<string | null>(null);
   // A short movement threshold before a drag "activates" — this is what lets
   // a plain click still open the edit form instead of every click starting a drag.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // Touch: press-and-hold briefly to drag, so a normal swipe still scrolls the page.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+  );
 
   const busy = showForm || showAreaSettings || confirmDelete !== null || activeId !== null;
   const busyRef = useRef(busy);
   busyRef.current = busy;
+
+  // Keep the page behind a modal from scrolling on phones.
+  const modalOpen = showForm || showAreaSettings || confirmDelete !== null;
+  useEffect(() => {
+    if (!modalOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [modalOpen]);
 
   const refresh = useCallback(async () => {
     // Jobs are the core data — if this fails, show the offline banner.
@@ -399,12 +419,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   const activeCompact = activeJob ? visibleColumns.find((c) => c.id === activeJob.status)?.compact : false;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#faf8f3] text-[#232826]">
-      <header className="flex items-center justify-between gap-4 border-b border-[#e8dcc8] px-5 py-3 bg-white">
-        <div className="flex items-baseline gap-3">
+    <div className="app-shell flex flex-col overflow-hidden bg-[#faf8f3] text-[#232826]">
+      <header className="flex items-center justify-between gap-4 border-b border-[#e8dcc8] px-5 py-3 bg-white max-md:flex-col max-md:items-stretch max-md:gap-2 max-md:px-3 max-md:py-2">
+        <div className="flex items-baseline gap-3 max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-2">
           <img src="/dockflow.png" alt="SMC" className="h-8 w-8" />
           <h1 className="text-xl font-bold tracking-tight text-[#6B1919]">Job Board</h1>
-          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1 max-md:order-last max-md:w-full [&>button]:max-md:flex-1">
             <button
               onClick={() => setViewTab('barges')}
               className={`px-3 py-1.5 text-sm font-semibold rounded transition ${
@@ -440,12 +460,12 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </span>
           {offline && (
-            <span className="flex items-center gap-1.5 rounded-md bg-[#fbf0ee] px-2 py-1 text-xs font-semibold text-[#b04a36]">
+            <span className="flex items-center gap-1.5 rounded-md bg-[#fbf0ee] px-2 py-1 text-xs font-semibold text-[#b04a36] max-md:w-full">
               <WifiOff size="1em" /> Can't reach the database — showing the last board we loaded
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-md:flex-wrap">
           <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1">
             {(['sm', 'md', 'lg', 'xl'] as const).map((size) => (
               <button
@@ -462,10 +482,10 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               </button>
             ))}
           </div>
-          <div className="relative">
+          <div className="relative max-md:order-first max-md:w-full">
             <Search size="1em" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9aa29c]" />
             <input
-              className="w-40 rounded-lg border border-[#e8dcc8] bg-[#fffef9] py-1.5 pl-8 pr-3 text-sm outline-none transition focus:border-[#6B1919] focus:ring-2 focus:ring-[#bf9f21]/20"
+              className="w-40 max-md:w-full rounded-lg border border-[#e8dcc8] bg-[#fffef9] py-1.5 pl-8 pr-3 text-sm outline-none transition focus:border-[#6B1919] focus:ring-2 focus:ring-[#bf9f21]/20"
               placeholder="Search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -487,8 +507,8 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           >
             <Plus size="1em" /> Add job
           </button>
-          <div className="ml-1 flex items-center gap-2 border-l border-[#e8dcc8] pl-3">
-            <span className="text-xs text-[#9aa29c]">{email}</span>
+          <div className="ml-1 flex items-center gap-2 border-l border-[#e8dcc8] pl-3 max-md:ml-auto">
+            <span className="text-xs text-[#9aa29c] max-md:hidden">{email}</span>
             <button
               onClick={onLogout}
               className="rounded-lg p-1.5 text-[#8a928c] hover:bg-[#f5f1e8]"
@@ -501,7 +521,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-hidden p-4">
+      <main className="min-h-0 flex-1 overflow-hidden p-4 max-md:overflow-visible max-md:p-2.5">
         {loading ? (
           <p className="text-sm text-[#9aa29c]">Loading the board…</p>
         ) : viewTab === 'reporting' ? (
@@ -516,38 +536,38 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           >
             {layoutSpec.type === 'grid' ? (
               <div
-                className="grid h-full w-full gap-3"
+                className="grid h-full w-full gap-3 max-md:flex max-md:h-auto max-md:flex-col md:[grid-template-columns:var(--cols)] md:[grid-template-rows:var(--rows)]"
                 style={{
-                  gridTemplateColumns: `repeat(${gridSpec.cols}, 1fr)`,
-                  gridTemplateRows: `repeat(${gridSpec.rows}, minmax(0, 1fr))`,
-                }}
+                  '--cols': `repeat(${gridSpec.cols}, 1fr)`,
+                  '--rows': `repeat(${gridSpec.rows}, minmax(0, 1fr))`,
+                } as React.CSSProperties}
               >
                 {visibleColumns.map((col, i) => (
                   <div
                     key={col.id}
-                    style={{ gridColumn: gridSpec.items[i].gridColumn, gridRow: gridSpec.items[i].gridRow }}
-                    className="h-full w-full min-h-0 overflow-hidden"
+                    style={{ '--gc': gridSpec.items[i].gridColumn, '--gr': gridSpec.items[i].gridRow } as React.CSSProperties}
+                    className="h-full w-full min-h-0 overflow-hidden md:[grid-column:var(--gc)] md:[grid-row:var(--gr)] max-md:h-auto max-md:overflow-visible"
                   >
                     <BoardColumn col={col} jobs={byStatus[col.id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[col.id] ?? ''} onTechChange={updateColumnTech} />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex h-full w-full gap-3">
+              <div className="flex h-full w-full gap-3 max-md:h-auto max-md:flex-col">
                 {/* Left: Ready (50%) */}
-                <div className="min-h-0 w-1/2 overflow-hidden">
+                <div className="min-h-0 w-1/2 overflow-hidden max-md:w-full max-md:overflow-visible">
                   <BoardColumn col={visibleColumns[0]} jobs={byStatus[visibleColumns[0].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[0].id] ?? ''} onTechChange={updateColumnTech} />
                 </div>
                 {/* Right: Waiting (top 50%), Hold|Complete (bottom 50%) */}
-                <div className="flex min-h-0 w-1/2 flex-col gap-3 overflow-hidden">
-                  <div className="min-h-0 flex-1 w-full overflow-hidden">
+                <div className="flex min-h-0 w-1/2 flex-col gap-3 overflow-hidden max-md:w-full max-md:overflow-visible">
+                  <div className="min-h-0 flex-1 w-full overflow-hidden max-md:flex-none max-md:overflow-visible">
                     <BoardColumn col={visibleColumns[1]} jobs={byStatus[visibleColumns[1].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[1].id] ?? ''} onTechChange={updateColumnTech} />
                   </div>
-                  <div className="flex min-h-0 flex-1 w-full gap-3 overflow-hidden">
-                    <div className="min-h-0 flex-1 w-full overflow-hidden">
+                  <div className="flex min-h-0 flex-1 w-full gap-3 overflow-hidden max-md:flex-none max-md:flex-col max-md:overflow-visible">
+                    <div className="min-h-0 flex-1 w-full overflow-hidden max-md:flex-none max-md:overflow-visible">
                       <BoardColumn col={visibleColumns[2]} jobs={byStatus[visibleColumns[2].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[2].id] ?? ''} onTechChange={updateColumnTech} />
                     </div>
-                    <div className="min-h-0 flex-1 w-full overflow-hidden">
+                    <div className="min-h-0 flex-1 w-full overflow-hidden max-md:flex-none max-md:overflow-visible">
                       <BoardColumn col={visibleColumns[3]} jobs={byStatus[visibleColumns[3].id] ?? []} onEdit={openEdit} areaColors={areaColors} areaOpacity={areaOpacity} tech={columnTechs[visibleColumns[3].id] ?? ''} onTechChange={updateColumnTech} />
                     </div>
                   </div>
@@ -606,11 +626,11 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
 
       {confirmDelete && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2926]/25 fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2926]/25 p-4 fade-in overscroll-contain"
           onClick={() => setConfirmDelete(null)}
         >
           <div
-            className="pop-in rounded-xl border border-[#e8dcc8] bg-white p-5 shadow-xl"
+            className="pop-in w-full max-w-sm rounded-xl border border-[#e8dcc8] bg-white p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base font-semibold">Delete this job?</p>
@@ -671,17 +691,17 @@ function BoardColumn({
 
   return (
     <div
-      className={`flex h-full min-h-0 flex-col rounded-xl border bg-white transition ${
+      className={`flex h-full min-h-0 flex-col rounded-xl border bg-white transition max-md:h-auto max-md:max-h-[70dvh] ${
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
       <div className="flex shrink-0 flex-col gap-2 px-3 pb-2 pt-2.5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between max-md:flex-wrap max-md:gap-y-1">
           <div className="flex items-center gap-2 min-w-0">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
             <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0 max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-0.5">
             <div className="flex items-center gap-1">
               <span className="text-xs font-semibold text-[#9aa29c]">Total Jobs</span>
               <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
@@ -729,7 +749,7 @@ function BoardColumn({
       </div>
       <div
         ref={setNodeRef}
-        className={`min-h-0 flex-1 overflow-y-auto px-2 pb-2 ${col.compact ? 'flex flex-wrap items-start gap-2' : 'space-y-2'}`}
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 ${col.compact ? 'flex flex-wrap items-start gap-2' : 'space-y-2'}`}
       >
         <SortableContext items={jobIds} strategy={col.compact ? rectSortingStrategy : verticalListSortingStrategy}>
           {jobs.length === 0 && (
@@ -779,7 +799,7 @@ function JobCardView({
   const bgColor = hexToRgba(areaHex, opacity);
   return (
     <div
-      className={`relative rounded-lg border-2 select-none ${compact ? 'w-44' : ''} ${
+      className={`relative rounded-lg border-2 select-none no-callout ${compact ? 'w-44' : ''} ${
         job.priority === 'high'
           ? 'border-[#ef4444]'
           : isNone
@@ -850,8 +870,9 @@ function JobCard({
       {...attributes}
       {...listeners}
       onClick={() => onEdit(job)}
-      // touch-none stops the browser from treating a drag as a page scroll on touch devices.
-      className={`touch-none cursor-grab rounded-lg transition-shadow hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] active:cursor-grabbing ${
+      onContextMenu={(e) => e.preventDefault()}
+      // touch-manipulation: swipes still scroll; a short press-and-hold starts the drag (see TouchSensor).
+      className={`touch-manipulation no-callout cursor-grab rounded-lg transition-shadow hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] active:cursor-grabbing ${
         compact ? 'w-44' : ''
       }`}
     >
@@ -903,11 +924,12 @@ function AttachmentsSection({
   const handleDownload = async (file: any) => {
     try {
       const { supabase } = await import('./lib/supabase');
-      const { data } = await supabase.storage.from('job-files').createSignedUrl(file.path, 3600);
+      const { data } = await supabase.storage.from('job-files').createSignedUrl(file.path, 3600, { download: file.name });
       if (data?.signedUrl) {
         const a = document.createElement('a');
         a.href = data.signedUrl;
         a.download = file.name;
+        a.rel = 'noopener';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -992,11 +1014,15 @@ function AreaSelect({
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent | TouchEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
   }, [open]);
 
   const selectedHex = value && areaColors[value] ? areaColorTokens[areaColors[value]].hex : null;
@@ -1012,7 +1038,7 @@ function AreaSelect({
         <span className={value ? '' : 'text-[#a8aca7]'}>{value || '—'}</span>
       </button>
       {open && (
-        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-[#e8dcc8] bg-white shadow-lg">
+        <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-[#e8dcc8] bg-white shadow-lg">
           <button
             type="button"
             onClick={() => {
@@ -1070,9 +1096,9 @@ function JobForm({
   const requestClose = () => (isDirty ? setConfirmDiscard(true) : onClose());
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto" onClick={requestClose}>
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto overscroll-contain" onClick={requestClose}>
       <div
-        className="pop-in mt-[6vh] w-full max-w-3xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh]"
+        className="pop-in mt-[6vh] w-full max-w-3xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh] max-md:m-0 modal-full max-md:max-h-none max-md:rounded-none max-md:border-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
@@ -1082,8 +1108,8 @@ function JobForm({
           </button>
         </div>
 
-        <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
-          <div className="grid grid-cols-[1.1fr_1fr] gap-x-5 gap-y-3 items-start">
+        <div className="px-5 py-4 overflow-y-auto overscroll-contain flex-1 min-h-0 max-md:px-4">
+          <div className="grid grid-cols-[1.1fr_1fr] max-md:grid-cols-1 gap-x-5 gap-y-3 items-start">
             {/* Left column: core job details */}
             <div className="space-y-3">
               <div>
@@ -1092,7 +1118,7 @@ function JobForm({
                   className={`${fieldClass} mt-1`}
                   value={draft.customerName}
                   onChange={(e) => set('customerName', e.target.value)}
-                  autoFocus
+                  autoFocus={!isTouchDevice}
                 />
               </div>
               <div>
@@ -1186,7 +1212,7 @@ function JobForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#e8dcc8] px-5 py-3 shrink-0">
+        <div className="flex items-center justify-between border-t border-[#e8dcc8] px-5 py-3 shrink-0 max-md:px-4 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div>
             {onDelete && job && (
               <button
@@ -1213,11 +1239,11 @@ function JobForm({
       </div>
 
       {confirmDiscard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2926]/40 fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f2926]/40 p-4 fade-in" onClick={(e) => e.stopPropagation()}>
           <div className="pop-in w-full max-w-sm rounded-xl border border-[#e8dcc8] bg-white p-5 shadow-xl">
             <h3 className="text-base font-bold text-[#6B1919]">Discard changes?</h3>
             <p className="mt-1.5 text-sm text-[#5a625c]">You have unsaved changes to this job. Save them now, or discard and close without saving.</p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
                 onClick={() => setConfirmDiscard(false)}
                 className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#6a726c] hover:bg-[#f5f1e8]"
@@ -1293,9 +1319,9 @@ function AreaColorSettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in overscroll-contain" onClick={onClose}>
       <div
-        className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col"
+        className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col modal-full max-md:max-h-none max-md:max-w-none max-md:rounded-none max-md:border-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
@@ -1333,21 +1359,21 @@ function AreaColorSettingsPanel({
                 type="checkbox"
                 checked={hideOldCompleted}
                 onChange={(e) => onSetHideOldCompleted(e.target.checked)}
-                className="w-4 h-4 accent-[#6B1919]"
+                className="w-4 h-4 max-md:h-6 max-md:w-6 shrink-0 accent-[#6B1919]"
               />
               <span className={labelClass}>Hide completed jobs older than 30 days</span>
             </label>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-5 py-4">
           {allAreas.length === 0 ? (
             <p className="text-sm text-[#8a928c] text-center py-8">Add an area to get started</p>
           ) : (
             <div className="space-y-2">
               {allAreas.map((area) => (
                 <div key={area} className="rounded-lg border border-[#e8dcc8] p-2.5 bg-[#fffef9] space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 max-md:flex-wrap">
                     {editingArea === area ? (
                       <input
                         className={`${fieldClass} flex-1 py-1`}
@@ -1372,12 +1398,13 @@ function AreaColorSettingsPanel({
                         {area}
                       </button>
                     )}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 max-md:order-last max-md:w-full max-md:flex-wrap max-md:gap-2">
                       {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
                         <button
                           key={key}
                           onClick={() => onSetColor(area, key as AreaColorKey)}
-                          className={`h-5 w-5 rounded-full border-2 transition shrink-0 ${
+                          data-compact
+                          className={`h-5 w-5 max-md:h-9 max-md:w-9 rounded-full border-2 transition shrink-0 ${
                             areaColors[area] === key ? 'scale-110 border-[#6B1919]' : 'border-transparent hover:scale-105'
                           }`}
                           style={{ background: hex }}
@@ -1415,7 +1442,7 @@ function AreaColorSettingsPanel({
           )}
         </div>
 
-        <div className="border-t border-[#e8dcc8] px-5 py-3 flex justify-end shrink-0 gap-2">
+        <div className="border-t border-[#e8dcc8] px-5 py-3 flex justify-end shrink-0 gap-2 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             onClick={onClose}
             className="rounded-lg bg-[#6B1919] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212]"
@@ -1472,17 +1499,17 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
   const inProgressCount = (jobsByStatus['barge-1'] ?? 0) + (jobsByStatus['barge-2'] ?? 0) + (jobsByStatus['barge-3'] ?? 0);
 
   return (
-    <div className="h-full overflow-y-auto bg-[#faf8f3]">
-      <div className="space-y-6 pb-8 px-6">
+    <div className="h-full overflow-y-auto bg-[#faf8f3] max-md:h-auto">
+      <div className="space-y-6 pb-8 px-6 max-md:space-y-4 max-md:px-2">
         {/* Page Title */}
         <div className="pt-4">
-          <h1 className="text-4xl font-bold text-[#6B1919]">Job Reports</h1>
+          <h1 className="text-4xl max-md:text-3xl font-bold text-[#6B1919]">Job Reports</h1>
         </div>
 
         {/* Overview & Pipeline */}
-        <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+        <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8 max-md:p-4">
           <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Overview</h2>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 gap-6 max-md:grid-cols-1 max-md:gap-3">
             {/* Left: Active */}
             <div className="rounded-lg bg-gradient-to-br from-[#faf8f3] to-[#f0ede6] p-6 text-center border border-[#e8dcc8]">
               <p className="text-sm text-[#8a928c] font-semibold mb-2">Active</p>
@@ -1505,9 +1532,9 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
         </div>
 
         {/* 2 Column Grid */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1 max-md:gap-4">
           {/* Jobs by Status */}
-          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8 max-md:p-4">
             <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Jobs by Status</h2>
             <div className="space-y-3">
               {/* In Progress (combined barges) */}
@@ -1535,7 +1562,7 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
           </div>
 
           {/* Jobs by Area */}
-          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+          <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8 max-md:p-4">
             <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Jobs by Area</h2>
             <div className="space-y-3">
               {Object.entries(jobsByArea)
@@ -1551,7 +1578,7 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
         </div>
 
         {/* Completed Jobs by Time Range */}
-        <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8">
+        <div className="bg-white rounded-xl border-2 border-[#e8dcc8] p-8 max-md:p-4">
           <h2 className="text-2xl font-bold text-[#6B1919] mb-6">Completed Work History</h2>
           <div className="space-y-3">
             {ranges.map((range) => {
@@ -1559,9 +1586,9 @@ function ReportingTab({ jobs, now }: { jobs: Job[]; now: Date }) {
               const priceInRange = jobsInRange.reduce((sum, j) => sum + (j.price ?? 0), 0);
               const daysInRange = jobsInRange.reduce((sum, j) => sum + (j.daysOfWork ?? 0), 0);
               return (
-                <div key={range.days} className="rounded-lg bg-[#faf8f3] px-6 py-4 border-2 border-[#e8dcc8]">
+                <div key={range.days} className="rounded-lg bg-[#faf8f3] px-6 max-md:px-3 py-4 border-2 border-[#e8dcc8]">
                   <p className="font-bold text-[#3a423d] text-lg mb-3">{range.label}</p>
-                  <div className="grid grid-cols-4 gap-4 text-center">
+                  <div className="grid grid-cols-4 max-md:grid-cols-2 gap-4 text-center">
                     <div>
                       <p className="text-sm text-[#8a928c] font-semibold mb-1">Jobs</p>
                       <p className="text-2xl font-bold text-[#3a423d]">{jobsInRange.length}</p>

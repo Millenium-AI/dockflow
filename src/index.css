@@ -43,3 +43,80 @@ input[type='number']::-webkit-inner-spin-button {
 @media (prefers-reduced-motion: reduce) {
   .pop-in, .fade-in { animation: none; }
 }
+
+/* ───────────── Mobile / touch support (additive) ───────────── */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  -webkit-tap-highlight-color: transparent;
+  /* Keep content clear of notches / home indicator (only non-zero on such devices). */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* iOS Safari zooms the page when a focused field is under 16px. Never let that happen on phones. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* iOS: date inputs ignore width and render oddly unless normalised. */
+@supports (-webkit-touch-callout: none) {
+  input[type='date'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.5rem;
+    display: block;
+  }
+}
+
+/* Finger-sized tap targets on touch screens. Opt out with data-compact. */
+@media (pointer: coarse) {
+  button:not([data-compact]),
+  select,
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']) {
+    min-height: 44px;
+  }
+  button[aria-label]:not([data-compact]) { min-width: 44px; }
+
+  /* Easy-to-grab slider. */
+  input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 32px !important;
+    background: transparent !important;
+  }
+  input[type='range']::-webkit-slider-runnable-track { height: 6px; background: #e8dcc8; border-radius: 8px; }
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    height: 26px; width: 26px; margin-top: -10px; border-radius: 50%;
+    background: #6B1919; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+  }
+  input[type='range']::-moz-range-track { height: 6px; background: #e8dcc8; border-radius: 8px; }
+  input[type='range']::-moz-range-thumb {
+    height: 22px; width: 22px; border-radius: 50%;
+    background: #6B1919; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+  }
+}
+
+/* Stop the long-press callout / text selection on cards (used to start a drag on touch). */
+.no-callout {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Full-height that tracks the visible area on phones (URL bar), with a 100vh fallback. */
+.app-shell { height: 100vh; height: 100dvh; }
+@media (max-width: 767px) {
+  /* Phones: let the page itself scroll (keeps the browser toolbar behaviour natural). */
+  .app-shell { height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
+}
+.min-h-app { min-height: 100vh; min-height: 100dvh; }
+@media (max-width: 767px) {
+  /* Modals become full-screen sheets on phones. */
+  .modal-full { height: 100vh; height: 100dvh; }
+}

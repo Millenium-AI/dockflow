@@ -4,5 +4,7 @@ export default {
   theme: {
     extend: {},
   },
+  // Only apply hover styles on devices that can really hover (stops sticky hover on phones).
+  future: { hoverOnlyWhenSupported: true },
   plugins: [],
 };
