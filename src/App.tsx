@@ -751,7 +751,7 @@ function BoardColumn({
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.accent }} />
             <h2 className="text-base font-bold tracking-tight text-[#3a423d] truncate">{col.label}</h2>
           </div>
-          <div className="flex items-center gap-3 shrink-0 max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-0.5">
+          <div className="flex items-center gap-3 shrink-0 max-md:w-full max-md:min-w-0 max-md:shrink max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-0.5">
             <div className="flex items-center gap-1">
               <span className="text-xs font-semibold text-[#9aa29c]">Total Jobs</span>
               <span className="text-sm font-semibold text-[#3a423d]">{jobs.length}</span>
@@ -1176,12 +1176,12 @@ function JobForm({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto overscroll-contain max-md:items-center max-md:p-3"
       style={vv ? { top: vv.top, height: vv.height, bottom: 'auto' } : undefined}
       onClick={requestClose}
     >
       <div
-        className="pop-in mt-[6vh] w-full max-w-3xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh] max-md:m-0 max-md:h-full max-md:max-h-none max-md:rounded-none max-md:border-0"
+        className="pop-in mt-[6vh] w-full max-w-3xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh] max-md:m-0 max-md:max-h-full"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
@@ -1406,9 +1406,9 @@ function AreaColorSettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in overscroll-contain" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in overscroll-contain max-md:p-3" onClick={onClose}>
       <div
-        className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col modal-full max-md:max-h-none max-md:max-w-none max-md:rounded-none max-md:border-0"
+        className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-md:max-h-full"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
