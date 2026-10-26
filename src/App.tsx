@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, LogOut, Plus, Search, Settings, Trash2, Wrench, WifiOff, X } from 'lucide-react';
+import { GripVertical, LogOut, MapPin, Plus, Search, Settings, Trash2, Wrench, WifiOff, X } from 'lucide-react';
 import {
   areaColorTokens, columnDefaults, jobTypeTokens, tabGridSpecs, tabLayoutSpecs,
   type AreaColorKey, type AreaColorSettings, type ColumnDefaults,
@@ -23,6 +23,33 @@ const fieldClass =
 const labelClass = 'text-sm font-semibold text-[#8a928c]';
 
 type RenderColumn = ColumnDefaults;
+
+/** Opens Apple Maps on iPhone/iPad/Mac-with-touch, Google Maps everywhere else (Android + desktop). */
+function mapsUrl(address: string): string {
+  const q = encodeURIComponent(address);
+  const isApple =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return isApple ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
+/** Tracks the part of the screen not covered by the on-screen keyboard (phones only). */
+function useVisualViewportBox() {
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || window.innerWidth >= 768) return;
+    const update = () => setBox({ top: vv.offsetTop, height: vv.height });
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+  return box;
+}
 
 export default function App() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(() => getSession());
@@ -420,11 +447,11 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
 
   return (
     <div className="app-shell flex flex-col overflow-hidden bg-[#faf8f3] text-[#232826]">
-      <header className="flex items-center justify-between gap-4 border-b border-[#e8dcc8] px-5 py-3 bg-white max-md:flex-col max-md:items-stretch max-md:gap-2 max-md:px-3 max-md:py-2">
-        <div className="flex items-baseline gap-3 max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-2">
-          <img src="/dockflow.png" alt="SMC" className="h-8 w-8" />
-          <h1 className="text-xl font-bold tracking-tight text-[#6B1919]">Job Board</h1>
-          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1 max-md:order-last max-md:w-full [&>button]:max-md:flex-1">
+      <header className="flex items-center justify-between gap-4 border-b border-[#e8dcc8] px-5 py-3 bg-white max-md:flex-wrap max-md:items-center max-md:gap-x-2 max-md:gap-y-2 max-md:px-3 max-md:py-2">
+        <div className="flex items-baseline gap-3 max-md:contents">
+          <img src="/dockflow.png" alt="SMC" className="h-8 w-8 max-md:order-1" />
+          <h1 className="text-xl font-bold tracking-tight text-[#6B1919] max-md:order-1 max-md:mr-1">Job Board</h1>
+          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1 max-md:order-3 max-md:w-full [&>button]:max-md:flex-1">
             <button
               onClick={() => setViewTab('barges')}
               className={`px-3 py-1.5 text-sm font-semibold rounded transition ${
@@ -456,17 +483,17 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               Reporting
             </button>
           </div>
-          <span className="text-sm text-[#9aa29c]">
+          <span className="text-sm text-[#9aa29c] max-md:hidden">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </span>
           {offline && (
-            <span className="flex items-center gap-1.5 rounded-md bg-[#fbf0ee] px-2 py-1 text-xs font-semibold text-[#b04a36] max-md:w-full">
+            <span className="flex items-center gap-1.5 rounded-md bg-[#fbf0ee] px-2 py-1 text-xs font-semibold text-[#b04a36] max-md:order-4 max-md:w-full">
               <WifiOff size="1em" /> Can't reach the database — showing the last board we loaded
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 max-md:flex-wrap">
-          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1">
+        <div className="flex items-center gap-2 max-md:contents">
+          <div className="flex items-center gap-1 rounded-lg border border-[#e8dcc8] bg-[#fffef9] p-1 max-md:hidden">
             {(['sm', 'md', 'lg', 'xl'] as const).map((size) => (
               <button
                 key={size}
@@ -482,7 +509,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               </button>
             ))}
           </div>
-          <div className="relative max-md:order-first max-md:w-full">
+          <div className="relative max-md:order-5 max-md:w-full">
             <Search size="1em" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9aa29c]" />
             <input
               className="w-40 max-md:w-full rounded-lg border border-[#e8dcc8] bg-[#fffef9] py-1.5 pl-8 pr-3 text-sm outline-none transition focus:border-[#6B1919] focus:ring-2 focus:ring-[#bf9f21]/20"
@@ -493,21 +520,21 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           </div>
           <button
             onClick={() => setShowAreaSettings(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f5f1e8]"
-            aria-label="Area colors"
+            className="flex items-center gap-1.5 rounded-lg border border-[#e8dcc8] bg-[#fffef9] px-3 py-1.5 text-sm font-semibold text-[#3a423d] transition hover:bg-[#f5f1e8] max-md:order-2 max-md:ml-auto"
+            aria-label="Settings"
           >
-            <Settings size="1em" /> Settings
+            <Settings size="1em" /> <span className="max-md:hidden">Settings</span>
           </button>
           <button
             onClick={() => {
               setEditing(null);
               setShowForm(true);
             }}
-            className="flex items-center gap-1.5 rounded-lg bg-[#6B1919] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212]"
+            className="flex items-center gap-1.5 rounded-lg bg-[#6B1919] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#521212] max-md:order-2"
           >
-            <Plus size="1em" /> Add job
+            <Plus size="1em" /> <span className="max-md:hidden">Add job</span><span className="md:hidden">Add</span>
           </button>
-          <div className="ml-1 flex items-center gap-2 border-l border-[#e8dcc8] pl-3 max-md:ml-auto">
+          <div className="ml-1 flex items-center gap-2 border-l border-[#e8dcc8] pl-3 max-md:order-2 max-md:pl-2">
             <span className="text-xs text-[#9aa29c] max-md:hidden">{email}</span>
             <button
               onClick={onLogout}
@@ -615,6 +642,8 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
           areaColors={areaColors}
           areaOpacity={areaOpacity}
           hideOldCompleted={hideOldCompleted}
+          fontSize={fontSize}
+          onSetFontSize={setFontSize}
           onClose={() => setShowAreaSettings(false)}
           onSetColor={setAreaColor}
           onDeleteColor={deleteAreaColor}
@@ -848,7 +877,20 @@ function JobCardView({
           <h3 className="text-base font-bold leading-tight">{job.customerName}</h3>
           {(job.subarea || job.area) && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.subarea || job.area}</span>}
         </div>
-        {job.address && <p className="mt-0.5 text-xs leading-snug opacity-85">{job.address}</p>}
+        {job.address && (
+          <a
+            href={mapsUrl(job.address)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="mt-0.5 inline-flex items-start gap-1 py-0.5 text-xs leading-snug underline decoration-dotted underline-offset-2 opacity-95"
+            title="Open in Maps"
+          >
+            <MapPin size="1.1em" className="mt-px shrink-0" />
+            <span>{job.address}</span>
+          </a>
+        )}
         {job.scope && <p className="mt-1 text-sm font-medium leading-snug opacity-90">{job.scope}</p>}
         {job.note && <p className="mt-0.5 text-xs leading-snug opacity-85">{job.note}</p>}
         {(job.priority === 'high' || job.scheduledDate) && (
@@ -1129,11 +1171,17 @@ function JobForm({
   const knownAreas = Object.keys(areaColors).sort();
   const isDirty = JSON.stringify(draft) !== JSON.stringify(initialDraft.current);
   const requestClose = () => (isDirty ? setConfirmDiscard(true) : onClose());
+  // On phones, size the sheet to what is left above the keyboard so Save/Cancel never hide behind it.
+  const vv = useVisualViewportBox();
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto overscroll-contain" onClick={requestClose}>
+    <div
+      className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto overscroll-contain"
+      style={vv ? { top: vv.top, height: vv.height, bottom: 'auto' } : undefined}
+      onClick={requestClose}
+    >
       <div
-        className="pop-in mt-[6vh] w-full max-w-3xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh] max-md:m-0 modal-full max-md:max-h-none max-md:rounded-none max-md:border-0"
+        className="pop-in mt-[6vh] w-full max-w-3xl rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-h-[85vh] mb-[6vh] max-md:m-0 max-md:h-full max-md:max-h-none max-md:rounded-none max-md:border-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#e8dcc8] px-5 py-3 shrink-0">
@@ -1160,7 +1208,7 @@ function JobForm({
                 <label className={labelClass}>Customer Address</label>
                 <input className={`${fieldClass} mt-1`} value={draft.address ?? ''} onChange={(e) => set('address', e.target.value)} placeholder="Street address, city, state" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 max-md:grid-cols-1 gap-3">
                 <div>
                   <label className={labelClass}>Area</label>
                   <AreaSelect
@@ -1203,7 +1251,7 @@ function JobForm({
               </div>
               <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf8f1] p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#8a7a5c]">Permit expiration</p>
-                <div className="mt-2 grid grid-cols-2 gap-3">
+                <div className="mt-2 grid grid-cols-2 max-md:grid-cols-1 gap-3">
                   <div>
                     <label className={labelClass}>City Permit</label>
                     <input className={`${fieldClass} mt-1`} type="date" value={draft.cityPermitExpiration ?? ''} onChange={(e) => set('cityPermitExpiration', e.target.value)} />
@@ -1218,7 +1266,7 @@ function JobForm({
 
             {/* Right column: date, status, scope, note, attachments — each its own row */}
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 max-md:grid-cols-1 gap-3">
                 <div>
                   <label className={labelClass}>Scheduled Date</label>
                   <input className={`${fieldClass} mt-1`} value={draft.scheduledDate ?? ''} onChange={(e) => set('scheduledDate', e.target.value)} placeholder="Oct 16" />
@@ -1315,6 +1363,8 @@ function AreaColorSettingsPanel({
   onDeleteColor,
   onSetOpacity,
   onSetHideOldCompleted,
+  fontSize,
+  onSetFontSize,
 }: {
   areaColors: AreaColorSettings;
   areaOpacity: Record<string, number>;
@@ -1324,6 +1374,8 @@ function AreaColorSettingsPanel({
   onDeleteColor: (areaCode: string) => void;
   onSetOpacity: (areaCode: string, opacity: number) => void;
   onSetHideOldCompleted: (val: boolean) => void;
+  fontSize: 'sm' | 'md' | 'lg' | 'xl';
+  onSetFontSize: (size: 'sm' | 'md' | 'lg' | 'xl') => void;
 }) {
   const [newArea, setNewArea] = useState('');
   const [editingArea, setEditingArea] = useState<string | null>(null);
@@ -1367,6 +1419,23 @@ function AreaColorSettingsPanel({
         </div>
 
         <div className="flex flex-col gap-4 px-5 py-4 shrink-0 border-b border-[#e8dcc8]">
+          <div className="md:hidden">
+            <label className={labelClass}>Text size</label>
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              {(['sm', 'md', 'lg', 'xl'] as const).map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => onSetFontSize(size)}
+                  className={`rounded-lg border px-2 py-1.5 text-sm font-semibold ${
+                    fontSize === size ? 'border-[#6B1919] bg-[#6B1919] text-white' : 'border-[#e8dcc8] bg-[#fffef9] text-[#3a423d]'
+                  }`}
+                >
+                  {size.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className={labelClass}>Add new area</label>
             <div className="mt-2 flex gap-2">
