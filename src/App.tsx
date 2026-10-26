@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { LogOut, Plus, Search, Settings, Trash2, Wrench, WifiOff, X } from 'lucide-react';
+import { GripVertical, LogOut, Plus, Search, Settings, Trash2, Wrench, WifiOff, X } from 'lucide-react';
 import {
   areaColorTokens, columnDefaults, jobTypeTokens, tabGridSpecs, tabLayoutSpecs,
   type AreaColorKey, type AreaColorSettings, type ColumnDefaults,
@@ -147,7 +147,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
   // Touch: press-and-hold briefly to drag, so a normal swipe still scrolls the page.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+    useSensor(TouchSensor, { activationConstraint: isTouchDevice ? { distance: 4 } : { delay: 250, tolerance: 8 } })
   );
 
   const busy = showForm || showAreaSettings || confirmDelete !== null || activeId !== null;
@@ -521,12 +521,30 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-hidden p-4 max-md:overflow-visible max-md:p-2.5">
+      <main className="min-h-0 flex-1 overflow-hidden p-4 max-md:overflow-visible max-md:px-4 max-md:py-3">
         {loading ? (
           <p className="text-sm text-[#9aa29c]">Loading the board…</p>
         ) : viewTab === 'reporting' ? (
           <ReportingTab jobs={jobs} now={now} />
         ) : (
+          <>
+          <nav
+            aria-label="Jump to column"
+            className="sticky top-0 z-20 -mx-4 mb-3 flex gap-2 overflow-x-auto border-b border-[#e8dcc8] bg-[#faf8f3]/95 px-4 py-2 backdrop-blur md:hidden"
+          >
+            {visibleColumns.map((col) => (
+              <button
+                key={col.id}
+                type="button"
+                onClick={() => document.getElementById(`col-${col.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#e8dcc8] bg-white px-3 py-1 text-sm font-semibold text-[#3a423d]"
+              >
+                <span className="h-2 w-2 rounded-full" style={{ background: col.accent }} />
+                {col.label}
+                <span className="text-[#9aa29c]">{(byStatus[col.id] ?? []).length}</span>
+              </button>
+            ))}
+          </nav>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -578,6 +596,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               {activeJob ? (
                 <div className="rotate-2 shadow-xl">
                   <JobCardView
+                    handle={isTouchDevice}
                     job={activeJob}
                     areaColor={areaColors[activeJob.area ?? ''] ?? 'none'}
                     opacity={areaOpacity[activeJob.area ?? ''] ?? 1}
@@ -587,6 +606,7 @@ function BoardApp({ email, onLogout }: { email: string; onLogout: () => void }) 
               ) : null}
             </DragOverlay>
           </DndContext>
+          </>
         )}
       </main>
 
@@ -691,7 +711,8 @@ function BoardColumn({
 
   return (
     <div
-      className={`flex h-full min-h-0 flex-col rounded-xl border bg-white transition max-md:h-auto max-md:max-h-[70dvh] ${
+      id={`col-${col.id}`}
+      className={`flex h-full min-h-0 flex-col rounded-xl border bg-white transition max-md:h-auto scroll-mt-14 ${
         isOver ? 'border-[#bf9f21] bg-[#fffbf0]' : 'border-[#e8dcc8]'
       }`}
     >
@@ -749,7 +770,7 @@ function BoardColumn({
       </div>
       <div
         ref={setNodeRef}
-        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 ${col.compact ? 'flex flex-wrap items-start gap-2' : 'space-y-2'}`}
+        className={`min-h-0 flex-1 overflow-y-auto px-2 pb-2 max-md:overflow-visible max-md:px-3 max-md:pb-3 ${col.compact ? 'flex flex-wrap items-start gap-2' : 'space-y-2'}`}
       >
         <SortableContext items={jobIds} strategy={col.compact ? rectSortingStrategy : verticalListSortingStrategy}>
           {jobs.length === 0 && (
@@ -788,11 +809,13 @@ function JobCardView({
   areaColor,
   compact,
   opacity = 1,
+  handle,
 }: {
   job: Job;
   areaColor: AreaColorKey;
   compact?: boolean;
   opacity?: number;
+  handle?: boolean;
 }) {
   const areaHex = areaColorTokens[areaColor].hex;
   const isNone = areaColor === 'none';
@@ -817,7 +840,10 @@ function JobCardView({
           <Wrench size="0.8em" /> MAINT
         </span>
       )}
-      <div className={`px-3 py-2 pl-3.5 flex flex-col h-full ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
+      {handle && (
+        <GripVertical size={22} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 opacity-60" aria-hidden />
+      )}
+      <div className={`px-3 py-2 ${handle ? 'pl-10' : 'pl-3.5'} flex flex-col h-full ${isNone ? 'text-[#2a312d]' : 'text-white'}`}>
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-base font-bold leading-tight">{job.customerName}</h3>
           {(job.subarea || job.area) && <span className="shrink-0 font-mono text-sm font-semibold opacity-90">{job.subarea || job.area}</span>}
@@ -868,15 +894,24 @@ function JobCard({
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
+      {...(isTouchDevice ? {} : listeners)}
       onClick={() => onEdit(job)}
       onContextMenu={(e) => e.preventDefault()}
       // touch-manipulation: swipes still scroll; a short press-and-hold starts the drag (see TouchSensor).
-      className={`touch-manipulation no-callout cursor-grab rounded-lg transition-shadow hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] active:cursor-grabbing ${
+      className={`relative touch-manipulation no-callout cursor-grab rounded-lg transition-shadow hover:shadow-[0_4px_12px_rgba(33,45,39,.06)] active:cursor-grabbing ${
         compact ? 'w-44' : ''
       }`}
     >
-      <JobCardView job={job} areaColor={areaColor} compact={compact} opacity={opacity} />
+      <JobCardView job={job} areaColor={areaColor} compact={compact} opacity={opacity} handle={isTouchDevice} />
+      {isTouchDevice && (
+        // Touch: dragging works only from this grip strip; the rest of the card scrolls the page normally.
+        <div
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-0 left-0 top-0 w-11 touch-none"
+          aria-label="Drag to move"
+        />
+      )}
     </div>
   );
 }
