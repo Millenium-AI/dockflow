@@ -39,7 +39,7 @@ function useVisualViewportBox() {
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv || window.innerWidth >= 768) return;
-    const update = () => setBox({ top: vv.offsetTop, height: vv.height });
+    const update = () => setBox(vv.scale > 1.01 ? null : { top: vv.offsetTop, height: vv.height });
     update();
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
@@ -1176,7 +1176,7 @@ function JobForm({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto overscroll-contain max-md:items-center max-md:p-3"
+      className="fixed inset-0 z-40 flex items-start justify-center bg-[#1f2926]/25 fade-in overflow-y-auto overscroll-contain max-md:items-center max-md:p-4"
       style={vv ? { top: vv.top, height: vv.height, bottom: 'auto' } : undefined}
       onClick={requestClose}
     >
@@ -1192,10 +1192,10 @@ function JobForm({
         </div>
 
         <div className="px-5 py-4 overflow-y-auto overscroll-contain flex-1 min-h-0 max-md:px-4">
-          <div className="grid grid-cols-[1.1fr_1fr] max-md:grid-cols-1 gap-x-5 gap-y-3 items-start">
+          <div className="grid grid-cols-[1.1fr_1fr] max-md:flex max-md:flex-col max-md:items-stretch gap-x-5 gap-y-3 max-md:gap-y-2.5 items-start">
             {/* Left column: core job details */}
-            <div className="space-y-3">
-              <div>
+            <div className="space-y-3 max-md:contents max-md:space-y-0">
+              <div className="max-md:order-1">
                 <label className={labelClass}>Customer or Job Name</label>
                 <input
                   className={`${fieldClass} mt-1`}
@@ -1204,11 +1204,11 @@ function JobForm({
                   autoFocus={!isTouchDevice}
                 />
               </div>
-              <div>
+              <div className="max-md:order-5">
                 <label className={labelClass}>Customer Address</label>
                 <input className={`${fieldClass} mt-1`} value={draft.address ?? ''} onChange={(e) => set('address', e.target.value)} placeholder="Street address, city, state" />
               </div>
-              <div className="grid grid-cols-2 max-md:grid-cols-1 gap-3">
+              <div className="grid grid-cols-2 gap-3 max-md:order-6">
                 <div>
                   <label className={labelClass}>Area</label>
                   <AreaSelect
@@ -1223,7 +1223,7 @@ function JobForm({
                   <input className={`${fieldClass} mt-1`} value={draft.subarea ?? ''} onChange={(e) => set('subarea', e.target.value)} placeholder="Specific location within area" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 max-md:order-7">
                 <div>
                   <label className={labelClass}>Price ($)</label>
                   <input className={`${fieldClass} mt-1`} type="number" value={draft.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} placeholder="0.00" min="0" step="0.01" />
@@ -1233,7 +1233,7 @@ function JobForm({
                   <input className={`${fieldClass} mt-1`} type="number" value={draft.daysOfWork ?? ''} onChange={(e) => set('daysOfWork', e.target.value ? Number(e.target.value) : undefined)} placeholder="0" min="0" step="0.5" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 max-md:order-8">
                 <div>
                   <label className={labelClass}>Priority</label>
                   <select className={`${fieldClass} mt-1`} value={draft.priority ?? 'normal'} onChange={(e) => set('priority', e.target.value as Job['priority'])}>
@@ -1249,9 +1249,9 @@ function JobForm({
                   </select>
                 </div>
               </div>
-              <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf8f1] p-3">
+              <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf8f1] p-3 max-md:order-9 max-md:p-2.5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#8a7a5c]">Permit expiration</p>
-                <div className="mt-2 grid grid-cols-2 max-md:grid-cols-1 gap-3">
+                <div className="mt-2 grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>City Permit</label>
                     <input className={`${fieldClass} mt-1`} type="date" value={draft.cityPermitExpiration ?? ''} onChange={(e) => set('cityPermitExpiration', e.target.value)} />
@@ -1265,8 +1265,8 @@ function JobForm({
             </div>
 
             {/* Right column: date, status, scope, note, attachments — each its own row */}
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 max-md:grid-cols-1 gap-3">
+            <div className="space-y-3 max-md:contents max-md:space-y-0">
+              <div className="grid grid-cols-2 gap-3 max-md:order-2">
                 <div>
                   <label className={labelClass}>Scheduled Date</label>
                   <input className={`${fieldClass} mt-1`} value={draft.scheduledDate ?? ''} onChange={(e) => set('scheduledDate', e.target.value)} placeholder="Oct 16" />
@@ -1280,15 +1280,15 @@ function JobForm({
                   </select>
                 </div>
               </div>
-              <div>
+              <div className="max-md:order-3">
                 <label className={labelClass}>Work Scope</label>
-                <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.scope ?? ''} onChange={(e) => set('scope', e.target.value)} placeholder="13K lift, dock rebuild" rows={3} />
+                <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.scope ?? ''} onChange={(e) => set('scope', e.target.value)} placeholder="13K lift, dock rebuild" rows={2} />
               </div>
-              <div>
+              <div className="max-md:order-4">
                 <label className={labelClass}>Short Note</label>
                 <textarea className={`${fieldClass} mt-1 resize-none`} value={draft.note ?? ''} onChange={(e) => set('note', e.target.value)} placeholder="No demo, needs permit" rows={2} />
               </div>
-              <div>
+              <div className="max-md:order-10">
                 <AttachmentsSection files={draft.files ?? []} jobId={draft.id} onFilesChange={(files) => set('files', files)} />
               </div>
             </div>
@@ -1406,7 +1406,7 @@ function AreaColorSettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in overscroll-contain max-md:p-3" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2926]/25 fade-in overscroll-contain max-md:p-4" onClick={onClose}>
       <div
         className="pop-in w-full max-w-md max-h-[85vh] rounded-xl border border-[#e8dcc8] bg-white shadow-xl flex flex-col max-md:max-h-full"
         onClick={(e) => e.stopPropagation()}
@@ -1418,7 +1418,7 @@ function AreaColorSettingsPanel({
           </button>
         </div>
 
-        <div className="flex flex-col gap-4 px-5 py-4 shrink-0 border-b border-[#e8dcc8]">
+        <div className="flex flex-col gap-4 px-5 py-4 shrink-0 border-b border-[#e8dcc8] max-md:gap-3 max-md:px-4 max-md:py-3">
           <div className="md:hidden">
             <label className={labelClass}>Text size</label>
             <div className="mt-2 grid grid-cols-4 gap-2">
@@ -1470,7 +1470,7 @@ function AreaColorSettingsPanel({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-5 py-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-5 py-4 max-md:px-4 max-md:py-3">
           {allAreas.length === 0 ? (
             <p className="text-sm text-[#8a928c] text-center py-8">Add an area to get started</p>
           ) : (
@@ -1502,13 +1502,13 @@ function AreaColorSettingsPanel({
                         {area}
                       </button>
                     )}
-                    <div className="flex items-center gap-1 shrink-0 max-md:order-last max-md:w-full max-md:flex-wrap max-md:gap-2">
+                    <div className="flex items-center gap-1 shrink-0 max-md:order-last max-md:grid max-md:w-full max-md:grid-cols-5 max-md:gap-2">
                       {Object.entries(areaColorTokens).map(([key, { hex, label }]) => (
                         <button
                           key={key}
                           onClick={() => onSetColor(area, key as AreaColorKey)}
                           data-compact
-                          className={`h-5 w-5 max-md:h-9 max-md:w-9 rounded-full border-2 transition shrink-0 ${
+                          className={`h-5 w-5 max-md:h-8 max-md:w-full rounded-full max-md:rounded-lg border-2 transition shrink-0 ${
                             areaColors[area] === key ? 'scale-110 border-[#6B1919]' : 'border-transparent hover:scale-105'
                           }`}
                           style={{ background: hex }}

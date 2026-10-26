@@ -75,10 +75,10 @@ body {
 
 /* Finger-sized tap targets on touch screens. Opt out with data-compact. */
 @media (pointer: coarse) {
-  button:not([data-compact]),
+  button:not([data-compact]) { min-height: 44px; }
   select,
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']) {
-    min-height: 44px;
+    min-height: 42px;
   }
   button[aria-label]:not([data-compact]) { min-width: 44px; }
 
@@ -120,3 +120,4 @@ body {
   /* Modals become full-screen sheets on phones. */
   .modal-full { height: 100vh; height: 100dvh; }
 }
+textarea { display: block; }
