@@ -884,7 +884,7 @@ function JobCardView({
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
-            className="mt-0.5 inline-flex items-start gap-1 py-0.5 text-xs leading-snug underline decoration-dotted underline-offset-2 opacity-95"
+            className="mt-0.5 inline-flex max-w-full items-start gap-1 self-start py-0.5 text-xs leading-snug underline decoration-dotted underline-offset-2 opacity-95"
             title="Open in Maps"
           >
             <MapPin size="1.1em" className="mt-px shrink-0" />
